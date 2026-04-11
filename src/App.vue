@@ -1,11 +1,41 @@
-<script setup lang="ts"></script>
-
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
-    documentation
-  </p>
+  <div class="app-layout">
+    <Sidebar class="sidebar-area" />
+    <Header class="header-area" />
+    <MainContent class="main-area" />
+  </div>
 </template>
 
-<style scoped></style>
+<script setup lang="ts">
+import Sidebar from './components/Sidebar.vue'
+import Header from './components/Header.vue'
+import MainContent from './components/MainContent.vue'
+</script>
+
+<style scoped>
+.app-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: 70px 1fr;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: #f4f7f9; /* 整体浅灰背景 */
+}
+
+.sidebar-area {
+  grid-column: 1 / 2;
+  grid-row: 1 / 3;
+}
+
+.header-area {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
+}
+
+.main-area {
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+  overflow-y: auto;
+}
+</style>
