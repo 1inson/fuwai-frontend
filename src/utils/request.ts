@@ -1,10 +1,8 @@
 import axios from 'axios'
 
-// 1. 创建 axios 实例
 const request = axios.create({
-  // 把你 Apifox 的根地址放在这里（根据你的截图填入）
-  baseURL: 'http://192.168.2.6:8000', 
-  timeout: 10000, // 请求超时时间：10秒
+  baseURL: '/api',
+  timeout: 10000,
 })
 
 // 2. 请求拦截器（可以在这里自动加上 token，目前先留空）
