@@ -2,7 +2,7 @@
   <div class="app-layout">
     <Sidebar class="sidebar-area" />
     <Header class="header-area" />
-    <MainContent class="main-area" />
+    <router-view class="main-area" />
   </div>
 </template>
 
