@@ -223,7 +223,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { setSystemCurrentTime, getRuntimeAISettings, type RuntimeAISettingsResponse } from '../api/system'
+import { setSystemCurrentTime, getSystemCurrentTime, getRuntimeAISettings, type RuntimeAISettingsResponse } from '../api/system'
 
 const notifySettings = reactive([
   { title: '异常预警提醒', desc: '能耗突变破预设阈值时即时通知', icon: '⚠️', iconClass: 'red', enabled: true },
@@ -329,10 +329,40 @@ const formatAndDisplayTime = (date: Date) => {
   currentDate.value = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${weekdays[date.getDay()]}`
 }
 
+const reverseTimezoneMap: Record<string, string> = {
+  'Asia/Shanghai': 'GMT+08:00',
+  'Asia/Tokyo': 'GMT+09:00',
+  'Europe/London': 'GMT+00:00',
+  'America/New_York': 'GMT-05:00'
+}
+
+const fetchCurrentTimeSetting = async () => {
+  try {
+    const res = await getSystemCurrentTime() as any
+    if (res && res.source === 'custom_time' && res.current_time) {
+      isManualTime = true
+      manualDate = new Date(res.current_time)
+      formatAndDisplayTime(manualDate)
+      if (res.timezone && reverseTimezoneMap[res.timezone]) {
+        timezone.value = reverseTimezoneMap[res.timezone]
+      }
+      const y = manualDate.getFullYear()
+      const mo = String(manualDate.getMonth() + 1).padStart(2, '0')
+      const d = String(manualDate.getDate()).padStart(2, '0')
+      const h = String(manualDate.getHours()).padStart(2, '0')
+      const mi = String(manualDate.getMinutes()).padStart(2, '0')
+      targetTime.value = `${y}-${mo}-${d}T${h}:${mi}`
+    }
+  } catch (err) {
+    console.error('获取当前时间设置失败:', err)
+  }
+}
+
 onMounted(() => {
   updateTime()
   timeTimer = window.setInterval(updateTime, 1000)
   fetchAISettings()
+  fetchCurrentTimeSetting()
 })
 
 onUnmounted(() => {
