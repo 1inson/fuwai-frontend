@@ -481,10 +481,17 @@ const uploadSuccess = ref(false)
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
-const fileTreeData = reactive([
+interface FileTreeItem {
+  name: string
+  type: 'raw' | 'metadata' | 'weather'
+  expanded: boolean
+  files: string[]
+}
+
+const fileTreeData = reactive<FileTreeItem[]>([
   {
     name: 'raw',
-    type: 'raw' as const,
+    type: 'raw',
     expanded: false,
     files: [
       'chilledwater.csv',
@@ -499,13 +506,13 @@ const fileTreeData = reactive([
   },
   {
     name: 'metadata',
-    type: 'metadata' as const,
+    type: 'metadata',
     expanded: false,
     files: ['metadata.csv']
   },
   {
     name: 'weather',
-    type: 'weather' as const,
+    type: 'weather',
     expanded: false,
     files: ['weather.csv']
   }
