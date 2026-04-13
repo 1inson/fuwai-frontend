@@ -211,7 +211,7 @@
           <div class="upload-area">
             <span class="cloud-icon">☁️</span>
             <h4>导入数据集</h4>
-            <p>将文件拖到此处或 <a href="#" @click.prevent="showUploadModal = true">点击上传</a></p>
+            <p>将文件拖到此处或 <a href="#" @click.prevent="openModal">点击上传</a></p>
             <span class="file-types">注：目前仅支持单个文件上传，支持格式为 CSV / JSON / XLSX，最大 500MB。</span>
           </div>
         </div>
@@ -219,45 +219,64 @@
       </div>
     </div>
 
-    <!-- 文件选择弹窗 -->
-    <div v-if="showUploadModal" class="upload-modal-overlay" @click.self="showUploadModal = false">
+    <!-- 上传数据集确认弹窗 -->
+    <div v-if="showUploadModal" class="upload-modal-overlay" @click.self="closeModal">
       <div class="upload-modal">
         <div class="modal-header">
-          <h3>选择数据文件</h3>
-          <button class="modal-close-btn" @click="showUploadModal = false">✕</button>
+          <div class="modal-title-area">
+            <span class="modal-title-icon">☁️</span>
+            <h3>上传数据集确认</h3>
+          </div>
+          <button class="modal-close-btn" @click="closeModal">✕</button>
         </div>
+
         <div class="modal-body">
-          <div class="file-tree">
-            <div
-              v-for="(folder, index) in fileTreeData"
-              :key="index"
-              class="tree-folder"
-            >
-              <div
-                class="folder-header"
-                :class="{ expanded: folder.expanded }"
-                @click="toggleFolder(index)"
-              >
-                <span class="folder-arrow">{{ folder.expanded ? '▼' : '▶' }}</span>
-                <span class="folder-icon">📁</span>
-                <span class="folder-name">{{ folder.name }}</span>
-                <span class="file-count">{{ folder.files.length }} 个文件</span>
+          <p class="modal-subtitle">请找到上传的原始数据文件信息，并分配数据类型</p>
+
+          <div class="info-banner">
+            <span class="info-icon">ⓘ</span>
+            <span>无法直接查看文件上传后，该操作仅对文件进行元数据匹配。</span>
+          </div>
+
+          <!-- 文件信息区 -->
+          <div class="file-info-card" @click="triggerFileSelect">
+            <div class="file-info-left">
+              <span class="file-card-icon">📄</span>
+              <div class="file-detail">
+                <span class="file-name-text">{{ uploadedFileName || '未选择文件' }}</span>
+                <span class="file-size-text">{{ uploadedFileSize }}</span>
               </div>
-              <transition name="slide">
-                <div v-if="folder.expanded" class="folder-children">
-                  <div
-                    v-for="(file, fIndex) in folder.files"
-                    :key="fIndex"
-                    class="file-item"
-                    :class="{ selected: selectedFile === file && selectedFolderType === folder.type }"
-                    @click="selectFile(file, folder.type)"
-                  >
-                    <span class="file-icon">📄</span>
-                    <span class="file-name">{{ file }}</span>
-                  </div>
-                </div>
-              </transition>
             </div>
+            <span class="file-tag">CSV 文件</span>
+          </div>
+
+          <!-- 数据源类型 Tab -->
+          <div class="section-label">数据源类型</div>
+          <div class="tab-group">
+            <button
+              v-for="tab in dataSourceTabs"
+              :key="tab.key"
+              class="tab-item"
+              :class="{ active: activeTab === tab.key }"
+              @click="activeTab = tab.key"
+            >{{ tab.label }}</button>
+          </div>
+
+          <!-- 子类型选择（仅表计原始数据时显示） -->
+          <template v-if="activeTab === 'raw'">
+            <div class="sub-type-section">
+              <label class="sub-label">子数据类型（按表计类别）</label>
+              <select v-model="selectedMeterType" class="meter-select">
+                <option disabled value="">请选择表计类型</option>
+                <option v-for="m in meterTypes" :key="m.value" :value="m.value">{{ m.label }}</option>
+              </select>
+            </div>
+          </template>
+
+          <!-- 提示信息条 -->
+          <div class="hint-bar">
+            <span class="hint-icon">ℹ️</span>
+            <span>确认后，系统将开启数据解析和自动校验流程，预计耗时约 45 秒，上传过程中请保持页面活跃。</span>
           </div>
 
           <!-- 上传状态提示 -->
@@ -266,16 +285,19 @@
             <span class="status-text">{{ uploadMessage }}</span>
           </div>
         </div>
+
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          style="display: none"
+          @change="handleFileSelected"
+        />
+
         <div class="modal-footer">
-          <input
-            ref="fileInputRef"
-            type="file"
-            accept=".csv,.xlsx,.xls"
-            style="display: none"
-            @change="handleFileSelected"
-          />
-          <button class="btn btn-default" @click="showUploadModal = false" :disabled="uploading">取消</button>
-          <button class="btn btn-primary" :disabled="!selectedFile || uploading" @click="confirmUpload">
+          <button class="btn-cancel" @click="closeModal" :disabled="uploading">取消</button>
+          <button class="btn-confirm" :disabled="!canConfirm || uploading" @click="confirmUpload">
+            <span v-if="!uploading" class="btn-confirm-icon">↻</span>
             {{ uploading ? '上传中...' : '确认上传' }}
           </button>
         </div>
@@ -285,7 +307,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { setSystemCurrentTime, getRuntimeAISettings, type RuntimeAISettingsResponse, uploadMetadataDataset, uploadWeatherDataset, uploadRawMeterDataset } from '../api/system'
 
 const notifySettings = reactive([
@@ -473,75 +495,78 @@ const saveSettings = () => {
 }
 
 const showUploadModal = ref(false)
-const selectedFile = ref('')
-const selectedFolderType = ref<'raw' | 'metadata' | 'weather'>('raw')
 const uploading = ref(false)
 const uploadMessage = ref('')
 const uploadSuccess = ref(false)
+const uploadedFile = ref<File | null>(null)
+const uploadedFileName = ref('')
+const uploadedFileSize = ref('')
+const activeTab = ref<'weather' | 'metadata' | 'raw'>('raw')
+const selectedMeterType = ref('')
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
-interface FileTreeItem {
-  name: string
-  type: 'raw' | 'metadata' | 'weather'
-  expanded: boolean
-  files: string[]
+const dataSourceTabs = [
+  { key: 'weather' as const, label: '天气数据' },
+  { key: 'metadata' as const, label: '建筑元数据' },
+  { key: 'raw' as const, label: '表计原始数据' }
+]
+
+const meterTypes = [
+  { value: 'electricity', label: '电表 (Electricity)' },
+  { value: 'water', label: '水表 (Water)' },
+  { value: 'gas', label: '燃气表 (Gas)' },
+  { value: 'steam', label: '蒸汽表 (Steam)' },
+  { value: 'hotwater', label: '热水表 (Hotwater)' },
+  { value: 'chilledwater', label: '冷水表 (Chilledwater)' },
+  { value: 'irrigation', label: '灌溉表 (Irrigation)' },
+  { value: 'solar', label: '太阳能表 (Solar)' }
+]
+
+const canConfirm = computed(() => {
+  if (!uploadedFile.value) return false
+  if (activeTab.value === 'raw') return !!selectedMeterType.value
+  return true
+})
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
 }
 
-const fileTreeData = reactive<FileTreeItem[]>([
-  {
-    name: 'raw',
-    type: 'raw',
-    expanded: false,
-    files: [
-      'chilledwater.csv',
-      'electricity.csv',
-      'gas.csv',
-      'hotwater.csv',
-      'irrigation.csv',
-      'solar.csv',
-      'steam.csv',
-      'water.csv'
-    ]
-  },
-  {
-    name: 'metadata',
-    type: 'metadata',
-    expanded: false,
-    files: ['metadata.csv']
-  },
-  {
-    name: 'weather',
-    type: 'weather',
-    expanded: false,
-    files: ['weather.csv']
-  }
-])
-
-const toggleFolder = (index: number) => {
-  fileTreeData[index].expanded = !fileTreeData[index].expanded
+const openModal = () => {
+  resetUploadState()
+  showUploadModal.value = true
 }
 
-const selectFile = (fileName: string, folderType: 'raw' | 'metadata' | 'weather') => {
-  if (selectedFile.value === fileName && selectedFolderType.value === folderType) {
-    selectedFile.value = ''
-    selectedFolderType.value = 'raw'
-  } else {
-    selectedFile.value = fileName
-    selectedFolderType.value = folderType
+const closeModal = () => {
+  if (!uploading.value) {
+    showUploadModal.value = false
+    resetUploadState()
   }
 }
 
-const confirmUpload = () => {
-  if (!selectedFile.value || fileInputRef.value) {
-    fileInputRef.value?.click()
-  }
+const triggerFileSelect = () => {
+  fileInputRef.value?.click()
 }
 
 const handleFileSelected = async (e: Event) => {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
-  if (!file || !selectedFile.value) return
+  if (!file) return
+
+  uploadedFile.value = file
+  uploadedFileName.value = file.name
+  uploadedFileSize.value = formatFileSize(file.size)
+
+  if (!canConfirm.value && activeTab.value === 'raw') {
+    selectedMeterType.value = ''
+  }
+}
+
+const confirmUpload = async () => {
+  if (!uploadedFile.value || !canConfirm.value) return
 
   uploading.value = true
   uploadMessage.value = ''
@@ -549,33 +574,35 @@ const handleFileSelected = async (e: Event) => {
 
   try {
     let res
-    if (selectedFolderType.value === 'metadata') {
-      res = await uploadMetadataDataset(file)
-    } else if (selectedFolderType.value === 'weather') {
-      res = await uploadWeatherDataset(file)
+    if (activeTab.value === 'metadata') {
+      res = await uploadMetadataDataset(uploadedFile.value)
+    } else if (activeTab.value === 'weather') {
+      res = await uploadWeatherDataset(uploadedFile.value)
     } else {
-      const meterType = selectedFile.value.replace('.csv', '')
-      res = await uploadRawMeterDataset(meterType, file)
+      res = await uploadRawMeterDataset(selectedMeterType.value, uploadedFile.value)
     }
-    uploadMessage.value = (res as any).message || '上传成功'
+    uploadMessage.value = (res as any).message || '文件已接收，后台任务已入队'
     uploadSuccess.value = true
     setTimeout(() => {
       showUploadModal.value = false
       resetUploadState()
-    }, 1500)
+    }, 2000)
   } catch (err: any) {
     console.error('上传失败:', err)
     uploadMessage.value = err?.response?.data?.detail || err?.message || '上传失败，请重试'
     uploadSuccess.value = false
   } finally {
     uploading.value = false
-    if (input) input.value = ''
+    if (fileInputRef.value) fileInputRef.value.value = ''
   }
 }
 
 const resetUploadState = () => {
-  selectedFile.value = ''
-  selectedFolderType.value = 'raw'
+  uploadedFile.value = null
+  uploadedFileName.value = ''
+  uploadedFileSize.value = ''
+  activeTab.value = 'raw'
+  selectedMeterType.value = ''
   uploading.value = false
   uploadMessage.value = ''
   uploadSuccess.value = false
@@ -813,181 +840,274 @@ input:checked + .slider:before { transform: translateX(20px); }
   .data-stats { grid-template-columns: 1fr; }
 }
 
-/* ===== 文件选择弹窗样式 ===== */
+/* ===== 上传数据集确认弹窗样式（白色主题） ===== */
 .upload-modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(2px);
 }
 .upload-modal {
-  background: #1e1e1e;
-  border-radius: 12px;
-  width: 420px;
-  max-height: 520px;
+  background: #fff;
+  border-radius: 16px;
+  width: 540px;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.15);
   overflow: hidden;
 }
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  background: #2d2d2d;
-  border-bottom: 1px solid #3a3a3a;
+  padding: 20px 24px 16px;
 }
+.modal-title-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.modal-title-icon { font-size: 22px; }
 .modal-header h3 {
   margin: 0;
-  font-size: 15px;
-  color: #e0e0e0;
+  font-size: 17px;
+  color: #111;
   font-weight: 600;
 }
 .modal-close-btn {
-  background: transparent;
+  background: #f1f3f5;
   border: none;
-  color: #888;
-  font-size: 18px;
+  color: #666;
+  font-size: 15px;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.2s;
-  line-height: 1;
 }
-.modal-close-btn:hover {
-  background: #3a3a3a;
-  color: #fff;
-}
+.modal-close-btn:hover { background: #e2e4e7; color: #333; }
+
 .modal-body {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 0;
+  padding: 0 24px 20px;
 }
-.modal-body::-webkit-scrollbar { width: 6px; }
+.modal-body::-webkit-scrollbar { width: 5px; }
 .modal-body::-webkit-scrollbar-track { background: transparent; }
-.modal-body::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
-.file-tree { padding: 0 8px; }
-.tree-folder { margin-bottom: 4px; }
-.folder-header {
+.modal-body::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+
+.modal-subtitle {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #555;
+}
+
+.info-banner {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 10px 14px;
-  cursor: pointer;
+  background: #f8fafc;
   border-radius: 8px;
-  transition: background 0.15s;
-  user-select: none;
-}
-.folder-header:hover { background: #2a2a2a; }
-.folder-arrow {
-  font-size: 10px;
-  color: #888;
-  width: 14px;
-  text-align: center;
-  transition: transform 0.2s;
-}
-.folder-icon { font-size: 16px; }
-.folder-name {
-  flex: 1;
-  font-size: 14px;
-  color: #e0e0e0;
-  font-weight: 500;
-}
-.file-count {
-  font-size: 11px;
+  margin-bottom: 18px;
+  font-size: 12px;
   color: #666;
-  background: #2a2a2a;
-  padding: 2px 8px;
-  border-radius: 10px;
+  line-height: 1.5;
 }
-.folder-children {
-  margin-left: 28px;
-  overflow: hidden;
+.info-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
 }
-.file-item {
+
+.file-info-card {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
   cursor: pointer;
-  border-radius: 6px;
-  transition: background 0.15s;
+  transition: all 0.2s;
+  margin-bottom: 22px;
 }
-.file-item:hover { background: #2a2a2a; }
-.file-item.selected {
-  background: rgba(0, 86, 224, 0.25);
+.file-info-card:hover {
+  border-color: #0056e0;
+  background: #fbfdff;
 }
-.file-icon { font-size: 14px; color: #4ade80; }
-.file-name {
-  font-size: 13px;
-  color: #ccc;
+.file-info-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.file-card-icon { font-size: 26px; }
+.file-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.file-name-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111;
+}
+.file-size-text {
+  font-size: 11px;
+  color: #888;
   font-family: 'Courier New', Courier, monospace;
 }
-.file-item.selected .file-name { color: #60a5fa; }
+.file-tag {
+  padding: 4px 10px;
+  background: #eef6ff;
+  color: #0056e0;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.section-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.tab-group {
+  display: flex;
+  gap: 0;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.tab-item {
+  flex: 1;
+  padding: 9px 0;
+  text-align: center;
+  font-size: 13px;
+  color: #555;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  border-right: 1.5px solid #e2e8f0;
+}
+.tab-item:last-child { border-right: none; }
+.tab-item:hover { background: #f8fafc; }
+.tab-item.active {
+  background: #0056e0;
+  color: #fff;
+  font-weight: 600;
+}
+.tab-item.active:hover { background: #004ac2; }
+
+.sub-type-section {
+  margin-bottom: 18px;
+}
+.sub-label {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.meter-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #333;
+  outline: none;
+  background: #fff;
+  cursor: pointer;
+  appearance: auto;
+  transition: border-color 0.2s;
+}
+.meter-select:focus { border-color: #0056e0; }
+
+.hint-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #ecfdf5;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #059669;
+  line-height: 1.5;
+}
+.hint-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 14px 20px;
-  background: #2d2d2d;
-  border-top: 1px solid #3a3a3a;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #eee;
+  background: #fafbfc;
 }
-.modal-footer .btn { padding: 8px 20px; font-size: 13px; border-radius: 8px; }
-.modal-footer .btn-default {
-  background: #3a3a3a;
-  color: #ccc;
+.btn-cancel {
+  padding: 9px 24px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1.5px solid #d0dbe5;
+  background: #fff;
+  color: #555;
+  transition: all 0.2s;
+}
+.btn-cancel:hover:not(:disabled) { background: #f4f7fa; }
+.btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 24px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
   border: none;
-}
-.modal-footer .btn-default:hover { background: #444; }
-.modal-footer .btn-primary {
   background: #0056e0;
-  color: white;
-  border: none;
+  color: #fff;
+  transition: all 0.2s;
 }
-.modal-footer .btn-primary:hover:not(:disabled) { background: #004ac2; }
-.modal-footer .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-confirm:hover:not(:disabled) { background: #004ac2; }
+.btn-confirm:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-confirm-icon { font-size: 14px; }
 
-/* 展开收起动画 */
-.slide-enter-active,
-.slide-leave-active {
-  transition: all 0.2s ease;
-  max-height: 400px;
-}
-.slide-enter-from,
-.slide-leave-to {
-  opacity: 0;
-  max-height: 0;
-}
-
-/* 上传状态提示条 */
 .upload-status-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 12px 16px;
+  margin-top: 12px;
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 13px;
-  animation: fadeIn 0.2s ease;
+  animation: fadeIn 0.25s ease;
 }
 .upload-status-bar.success {
-  background: rgba(74, 222, 128, 0.12);
-  color: #4ade80;
-  border: 1px solid rgba(74, 222, 128, 0.25);
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
 }
 .upload-status-bar.error {
-  background: rgba(248, 113, 113, 0.12);
-  color: #f87171;
-  border: 1px solid rgba(248, 113, 113, 0.25);
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
 }
 .status-icon { font-size: 15px; flex-shrink: 0; }
 .status-text { flex: 1; word-break: break-word; }
