@@ -211,11 +211,74 @@
           <div class="upload-area">
             <span class="cloud-icon">☁️</span>
             <h4>导入数据集</h4>
-            <p>将文件拖到此处或 <a href="#">点击上传</a></p>
+            <p>将文件拖到此处或 <a href="#" @click.prevent="showUploadModal = true">点击上传</a></p>
             <span class="file-types">注：目前仅支持单个文件上传，支持格式为 CSV / JSON / XLSX，最大 500MB。</span>
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- 文件选择弹窗 -->
+    <div v-if="showUploadModal" class="upload-modal-overlay" @click.self="showUploadModal = false">
+      <div class="upload-modal">
+        <div class="modal-header">
+          <h3>选择数据文件</h3>
+          <button class="modal-close-btn" @click="showUploadModal = false">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="file-tree">
+            <div
+              v-for="(folder, index) in fileTreeData"
+              :key="index"
+              class="tree-folder"
+            >
+              <div
+                class="folder-header"
+                :class="{ expanded: folder.expanded }"
+                @click="toggleFolder(index)"
+              >
+                <span class="folder-arrow">{{ folder.expanded ? '▼' : '▶' }}</span>
+                <span class="folder-icon">📁</span>
+                <span class="folder-name">{{ folder.name }}</span>
+                <span class="file-count">{{ folder.files.length }} 个文件</span>
+              </div>
+              <transition name="slide">
+                <div v-if="folder.expanded" class="folder-children">
+                  <div
+                    v-for="(file, fIndex) in folder.files"
+                    :key="fIndex"
+                    class="file-item"
+                    :class="{ selected: selectedFile === file && selectedFolderType === folder.type }"
+                    @click="selectFile(file, folder.type)"
+                  >
+                    <span class="file-icon">📄</span>
+                    <span class="file-name">{{ file }}</span>
+                  </div>
+                </div>
+              </transition>
+            </div>
+          </div>
+
+          <!-- 上传状态提示 -->
+          <div v-if="uploadMessage" class="upload-status-bar" :class="{ success: uploadSuccess, error: !uploadSuccess && !uploading }">
+            <span class="status-icon">{{ uploading ? '⏳' : (uploadSuccess ? '✅' : '❌') }}</span>
+            <span class="status-text">{{ uploadMessage }}</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            style="display: none"
+            @change="handleFileSelected"
+          />
+          <button class="btn btn-default" @click="showUploadModal = false" :disabled="uploading">取消</button>
+          <button class="btn btn-primary" :disabled="!selectedFile || uploading" @click="confirmUpload">
+            {{ uploading ? '上传中...' : '确认上传' }}
+          </button>
+        </div>
       </div>
     </div>
   </main>
@@ -223,7 +286,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
-import { setSystemCurrentTime, getRuntimeAISettings, type RuntimeAISettingsResponse } from '../api/system'
+import { setSystemCurrentTime, getRuntimeAISettings, type RuntimeAISettingsResponse, uploadMetadataDataset, uploadWeatherDataset, uploadRawMeterDataset } from '../api/system'
 
 const notifySettings = reactive([
   { title: '异常预警提醒', desc: '能耗突变破预设阈值时即时通知', icon: '⚠️', iconClass: 'red', enabled: true },
@@ -407,6 +470,108 @@ const copyApiKey = () => {
 
 const saveSettings = () => {
   alert('设置正在保存...')
+}
+
+const showUploadModal = ref(false)
+const selectedFile = ref('')
+const selectedFolderType = ref<'raw' | 'metadata' | 'weather'>('raw')
+const uploading = ref(false)
+const uploadMessage = ref('')
+const uploadSuccess = ref(false)
+
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
+const fileTreeData = reactive([
+  {
+    name: 'raw',
+    type: 'raw' as const,
+    expanded: false,
+    files: [
+      'chilledwater.csv',
+      'electricity.csv',
+      'gas.csv',
+      'hotwater.csv',
+      'irrigation.csv',
+      'solar.csv',
+      'steam.csv',
+      'water.csv'
+    ]
+  },
+  {
+    name: 'metadata',
+    type: 'metadata' as const,
+    expanded: false,
+    files: ['metadata.csv']
+  },
+  {
+    name: 'weather',
+    type: 'weather' as const,
+    expanded: false,
+    files: ['weather.csv']
+  }
+])
+
+const toggleFolder = (index: number) => {
+  fileTreeData[index].expanded = !fileTreeData[index].expanded
+}
+
+const selectFile = (fileName: string, folderType: 'raw' | 'metadata' | 'weather') => {
+  if (selectedFile.value === fileName && selectedFolderType.value === folderType) {
+    selectedFile.value = ''
+    selectedFolderType.value = 'raw'
+  } else {
+    selectedFile.value = fileName
+    selectedFolderType.value = folderType
+  }
+}
+
+const confirmUpload = () => {
+  if (!selectedFile.value || fileInputRef.value) {
+    fileInputRef.value?.click()
+  }
+}
+
+const handleFileSelected = async (e: Event) => {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !selectedFile.value) return
+
+  uploading.value = true
+  uploadMessage.value = ''
+  uploadSuccess.value = false
+
+  try {
+    let res
+    if (selectedFolderType.value === 'metadata') {
+      res = await uploadMetadataDataset(file)
+    } else if (selectedFolderType.value === 'weather') {
+      res = await uploadWeatherDataset(file)
+    } else {
+      const meterType = selectedFile.value.replace('.csv', '')
+      res = await uploadRawMeterDataset(meterType, file)
+    }
+    uploadMessage.value = (res as any).message || '上传成功'
+    uploadSuccess.value = true
+    setTimeout(() => {
+      showUploadModal.value = false
+      resetUploadState()
+    }, 1500)
+  } catch (err: any) {
+    console.error('上传失败:', err)
+    uploadMessage.value = err?.response?.data?.detail || err?.message || '上传失败，请重试'
+    uploadSuccess.value = false
+  } finally {
+    uploading.value = false
+    if (input) input.value = ''
+  }
+}
+
+const resetUploadState = () => {
+  selectedFile.value = ''
+  selectedFolderType.value = 'raw'
+  uploading.value = false
+  uploadMessage.value = ''
+  uploadSuccess.value = false
 }
 </script>
 
@@ -639,5 +804,188 @@ input:checked + .slider:before { transform: translateX(20px); }
 @media (max-width: 1200px) {
   .settings-grid { grid-template-columns: 1fr; }
   .data-stats { grid-template-columns: 1fr; }
+}
+
+/* ===== 文件选择弹窗样式 ===== */
+.upload-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+.upload-modal {
+  background: #1e1e1e;
+  border-radius: 12px;
+  width: 420px;
+  max-height: 520px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: #2d2d2d;
+  border-bottom: 1px solid #3a3a3a;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #e0e0e0;
+  font-weight: 600;
+}
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  line-height: 1;
+}
+.modal-close-btn:hover {
+  background: #3a3a3a;
+  color: #fff;
+}
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.modal-body::-webkit-scrollbar { width: 6px; }
+.modal-body::-webkit-scrollbar-track { background: transparent; }
+.modal-body::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+.file-tree { padding: 0 8px; }
+.tree-folder { margin-bottom: 4px; }
+.folder-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s;
+  user-select: none;
+}
+.folder-header:hover { background: #2a2a2a; }
+.folder-arrow {
+  font-size: 10px;
+  color: #888;
+  width: 14px;
+  text-align: center;
+  transition: transform 0.2s;
+}
+.folder-icon { font-size: 16px; }
+.folder-name {
+  flex: 1;
+  font-size: 14px;
+  color: #e0e0e0;
+  font-weight: 500;
+}
+.file-count {
+  font-size: 11px;
+  color: #666;
+  background: #2a2a2a;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.folder-children {
+  margin-left: 28px;
+  overflow: hidden;
+}
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.file-item:hover { background: #2a2a2a; }
+.file-item.selected {
+  background: rgba(0, 86, 224, 0.25);
+}
+.file-icon { font-size: 14px; color: #4ade80; }
+.file-name {
+  font-size: 13px;
+  color: #ccc;
+  font-family: 'Courier New', Courier, monospace;
+}
+.file-item.selected .file-name { color: #60a5fa; }
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #2d2d2d;
+  border-top: 1px solid #3a3a3a;
+}
+.modal-footer .btn { padding: 8px 20px; font-size: 13px; border-radius: 8px; }
+.modal-footer .btn-default {
+  background: #3a3a3a;
+  color: #ccc;
+  border: none;
+}
+.modal-footer .btn-default:hover { background: #444; }
+.modal-footer .btn-primary {
+  background: #0056e0;
+  color: white;
+  border: none;
+}
+.modal-footer .btn-primary:hover:not(:disabled) { background: #004ac2; }
+.modal-footer .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 展开收起动画 */
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 0.2s ease;
+  max-height: 400px;
+}
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+
+/* 上传状态提示条 */
+.upload-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  animation: fadeIn 0.2s ease;
+}
+.upload-status-bar.success {
+  background: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.25);
+}
+.upload-status-bar.error {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+.status-icon { font-size: 15px; flex-shrink: 0; }
+.status-text { flex: 1; word-break: break-word; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

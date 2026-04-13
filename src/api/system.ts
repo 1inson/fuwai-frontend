@@ -59,3 +59,38 @@ export interface RuntimeAISettingsResponse extends RuntimeAISettingsPayload {
 export const getRuntimeAISettings = () => {
   return request.get<RuntimeAISettingsResponse>('/system/ai-settings')
 }
+
+export interface AsyncTaskAcceptedResponse {
+  status: string
+  message: string
+}
+
+export const uploadMetadataDataset = (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post<AsyncTaskAcceptedResponse>(
+    '/dataset/upload/metadata',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+}
+
+export const uploadWeatherDataset = (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post<AsyncTaskAcceptedResponse>(
+    '/dataset/upload/weather',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+}
+
+export const uploadRawMeterDataset = (meterType: string, file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post<AsyncTaskAcceptedResponse>(
+    `/dataset/upload/raw/${meterType}`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+}
