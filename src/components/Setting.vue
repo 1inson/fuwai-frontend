@@ -19,7 +19,7 @@
           <div class="profile-header">
             <div class="avatar-wrapper">
               <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex" alt="Alex Chen" class="avatar" />
-              <button class="edit-avatar-btn">✏️</button>
+              <button class="edit-avatar-btn">编</button>
             </div>
             <div class="profile-title">
               <h3>Alex Chen</h3>
@@ -38,14 +38,13 @@
 
         <div class="card notify-card">
           <div class="card-header">
-            <span class="icon">🔔</span>
             <h3>智能通知</h3>
           </div>
           <p class="card-desc">通知页面配置</p>
 
           <div class="toggle-list">
             <div class="toggle-item" v-for="(item, index) in notifySettings" :key="index">
-              <div class="item-icon" :class="item.iconClass">{{ item.icon }}</div>
+              
               <div class="item-info">
                 <h4>{{ item.title }}</h4>
                 <p>{{ item.desc }}</p>
@@ -60,7 +59,6 @@
 
         <div class="card time-sync-card">
           <div class="card-header">
-            <span class="icon">🕐</span>
             <h3>系统时间与同步</h3>
           </div>
 
@@ -74,10 +72,7 @@
             <input type="datetime-local" v-model="targetTime" class="datetime-input" />
           </div>
 
-          <div class="input-group">
-            <label>NTP 服务器地址</label>
-            <input type="text" v-model="ntpServer" />
-          </div>
+          
 
           <div class="input-group">
             <label>时区设置</label>
@@ -90,8 +85,9 @@
           </div>
 
           <button class="sync-time-btn" @click="applyTime">
-            <span class="btn-icon">✏️</span> 立即修改当前时间
+            立即修改当前时间
           </button>
+          <button class="sync-time-btn mt-3" @click="restoreTime">业务系统恢复真实时间</button>
         </div>
       </div>
 
@@ -99,7 +95,6 @@
 
         <div class="card data-card">
           <div class="card-header">
-            <span class="icon">🗄️</span>
             <h3>数据管理</h3>
           </div>
 
@@ -133,7 +128,6 @@
               <div class="progress-bar"><div class="progress-fill" style="width: 36%"></div></div>
             </div>
             <button class="clear-cache-btn">
-              <span class="icon">⬇️</span>
               清除缓存
             </button>
           </div>
@@ -141,7 +135,6 @@
 
         <div class="card ai-card">
           <div class="card-header">
-            <span class="icon">🤖</span>
             <h3>AI引擎配置</h3>
             <span v-if="!aiLoading" class="connection-status" :class="{ active: aiSettings?.llm?.api_key_configured }">
               {{ aiSettings?.llm?.api_key_configured ? '已连接 Active' : '未连接 Inactive' }}
@@ -167,8 +160,8 @@
               <div class="input-with-icon">
                 <input :type="showApiKey ? 'text' : 'password'" :value="aiSettings.llm.api_key || (aiSettings.llm.api_key_configured ? '********************' : '')" @input="onApiKeyInput" />
                 <div class="input-actions">
-                  <button @click="showApiKey = !showApiKey" class="icon-btn">👁️</button>
-                  <button class="icon-btn" @click="copyApiKey">📄</button>
+                  <button @click="showApiKey = !showApiKey" class="icon-btn">显示</button>
+                  <button class="icon-btn" @click="copyApiKey">复制</button>
                 </div>
               </div>
             </div>
@@ -209,7 +202,6 @@
 
         <div class="card upload-card">
           <div class="upload-area">
-            <span class="cloud-icon">☁️</span>
             <h4>导入数据集</h4>
             <p>将文件拖到此处或 <a href="#" @click.prevent="openModal">点击上传</a></p>
             <span class="file-types">注：目前仅支持单个文件上传，支持格式为 CSV / JSON / XLSX，最大 500MB。</span>
@@ -224,7 +216,6 @@
       <div class="upload-modal">
         <div class="modal-header">
           <div class="modal-title-area">
-            <span class="modal-title-icon">☁️</span>
             <h3>上传数据集确认</h3>
           </div>
           <button class="modal-close-btn" @click="closeModal">✕</button>
@@ -234,14 +225,12 @@
           <p class="modal-subtitle">请找到上传的原始数据文件信息，并分配数据类型</p>
 
           <div class="info-banner">
-            <span class="info-icon">ⓘ</span>
             <span>无法直接查看文件上传后，该操作仅对文件进行元数据匹配。</span>
           </div>
 
           <!-- 文件信息区 -->
           <div class="file-info-card" @click="triggerFileSelect">
             <div class="file-info-left">
-              <span class="file-card-icon">📄</span>
               <div class="file-detail">
                 <span class="file-name-text">{{ uploadedFileName || '未选择文件' }}</span>
                 <span class="file-size-text">{{ uploadedFileSize }}</span>
@@ -275,13 +264,12 @@
 
           <!-- 提示信息条 -->
           <div class="hint-bar">
-            <span class="hint-icon">ℹ️</span>
             <span>确认后，系统将开启数据解析和自动校验流程，预计耗时约 45 秒，上传过程中请保持页面活跃。</span>
           </div>
 
           <!-- 上传状态提示 -->
           <div v-if="uploadMessage" class="upload-status-bar" :class="{ success: uploadSuccess, error: !uploadSuccess && !uploading }">
-            <span class="status-icon">{{ uploading ? '⏳' : (uploadSuccess ? '✅' : '❌') }}</span>
+            <span class="status-icon">{{ uploading ? '执行中...' : (uploadSuccess ? '已完成' : '失败') }}</span>
             <span class="status-text">{{ uploadMessage }}</span>
           </div>
         </div>
@@ -308,17 +296,17 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { setSystemCurrentTime, getRuntimeAISettings, type RuntimeAISettingsResponse, uploadMetadataDataset, uploadWeatherDataset, uploadRawMeterDataset } from '../api/system'
+import { getRuntimeAISettings, type RuntimeAISettingsResponse, uploadMetadataDataset, uploadWeatherDataset, uploadRawMeterDataset } from '../api/system'
+import { useTimeManager } from '../utils/timeManager'
 
 const notifySettings = reactive([
-  { title: '异常预警提醒', desc: '能耗突变破预设阈值时即时通知', icon: '⚠️', iconClass: 'red', enabled: true },
-  { title: '告警通知', desc: '系统层级安全告警与维护提示', icon: '❗', iconClass: 'gray', enabled: true },
-  { title: '待办任务提醒', desc: '每日节能任务与巡检任务提醒', icon: '📅', iconClass: 'blue', enabled: false },
-  { title: '功能通知', desc: '系统功能升级与周报推送', icon: 'ℹ️', iconClass: 'gray', enabled: true }
+  { title: '异常预警提醒', desc: '能耗突变破预设阈值时即时通知', iconClass: 'red', enabled: true },
+  { title: '告警通知', desc: '系统层级安全告警与维护提示', iconClass: 'gray', enabled: true },
+  { title: '待办任务提醒', desc: '每日节能任务与巡检任务提醒', iconClass: 'blue', enabled: false },
+  { title: '功能通知', desc: '系统功能升级与周报推送', iconClass: 'gray', enabled: true }
 ])
 
 const showApiKey = ref(false)
-const ntpServer = ref('ntp.cscec8.com.cn')
 const timezone = ref('GMT+08:00')
 
 const aiLoading = ref(true)
@@ -370,12 +358,12 @@ const onApiKeyInput = (e: Event) => {
   aiSettings.llm.api_key = (e.target as HTMLInputElement).value
 }
 
+const { state: timeState, startCustomTime, resetToNaturalTime, syncTimeToBackend, getCurrentTimeString } = useTimeManager()
+
 const currentTime = ref('14:32:05')
 const currentDate = ref('2026年10月4日 星期四')
 const targetTime = ref('')
 let timeTimer: number | null = null
-let isManualTime = false
-let manualDate: Date | null = null
 
 const timezoneMap: Record<string, string> = {
   'GMT+08:00': 'Asia/Shanghai',
@@ -395,13 +383,8 @@ const getTimezoneOffset = (tz: string): string => {
 }
 
 const updateTime = () => {
-  if (isManualTime && manualDate) {
-    manualDate = new Date(manualDate.getTime() + 1000)
-    formatAndDisplayTime(manualDate)
-    return
-  }
-  const now = new Date()
-  formatAndDisplayTime(now)
+  const current = new Date(getCurrentTimeString())
+  formatAndDisplayTime(current)
 }
 
 const formatAndDisplayTime = (date: Date) => {
@@ -421,33 +404,14 @@ const reverseTimezoneMap: Record<string, string> = {
   'America/New_York': 'GMT-05:00'
 }
 
-const fetchCurrentTimeSetting = () => {
-  try {
-    const savedTime = localStorage.getItem('manualTime')
-    const savedTimezone = localStorage.getItem('timezone')
-    const savedTargetTime = localStorage.getItem('targetTime')
-    
-    if (savedTime) {
-      isManualTime = true
-      manualDate = new Date(savedTime)
-      formatAndDisplayTime(manualDate)
-      if (savedTimezone) {
-        timezone.value = savedTimezone
-      }
-      if (savedTargetTime) {
-        targetTime.value = savedTargetTime
-      }
-    }
-  } catch (err) {
-    console.error('获取当前时间设置失败:', err)
-  }
-}
-
 onMounted(() => {
   updateTime()
   timeTimer = window.setInterval(updateTime, 1000)
   fetchAISettings()
-  fetchCurrentTimeSetting()
+  // Recover UI state
+  if (timeState.timezone) {
+    timezone.value = reverseTimezoneMap[timeState.timezone] || 'GMT+08:00'
+  }
 })
 
 onUnmounted(() => {
@@ -464,24 +428,22 @@ const applyTime = async () => {
   const ianaTz = timezoneMap[timezone.value] || 'Asia/Shanghai'
 
   try {
-    const res = await setSystemCurrentTime({
-      use_current_time: false,
-      current_time: isoTime,
-      timezone: ianaTz
-    }) as any
-    isManualTime = true
-    manualDate = new Date(targetTime.value)
-    formatAndDisplayTime(manualDate)
-    
-    // 保存到本地存储
-    localStorage.setItem('manualTime', manualDate.toISOString())
-    localStorage.setItem('timezone', timezone.value)
-    localStorage.setItem('targetTime', targetTime.value)
-    
-    alert(`系统时间已修改为：${currentDate.value} ${currentTime.value}（来源：${res.source}）`)
+    startCustomTime(isoTime, ianaTz)
+    const res = await syncTimeToBackend() as any
+    alert(`系统时间已修改为目标时间（来源：${res?.source || 'custom_time'}）`)
   } catch (err) {
     console.error('设置时间失败:', err)
     alert('时间设置失败，请检查网络连接或后端服务')
+  }
+}
+
+const restoreTime = async () => {
+  try {
+    resetToNaturalTime()
+    await syncTimeToBackend()
+    alert('系统时间已恢复为真实环境时间')
+  } catch (err) {
+    alert('时间恢复失败，请检查网络即可')
   }
 }
 
@@ -721,6 +683,9 @@ input:checked + .slider:before { transform: translateX(20px); }
   gap: 8px;
 }
 .sync-time-btn:hover { background: #dbeafe; }
+.sync-time-btn:active { transform: scale(0.98); }
+.mt-3 { margin-top: 12px; border: 1px solid #c8d8ec; background: #fafbfc; color: #333; }
+.mt-3:hover { background: #f0f4f8; }
 .btn-icon { font-size: 16px; }
 
 .datetime-input {
