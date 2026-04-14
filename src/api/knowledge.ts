@@ -27,5 +27,6 @@ export interface KnowledgeDocumentListParams {
 }
 
 export const getKnowledgeDocuments = (params: KnowledgeDocumentListParams) => {
-  return request.get('/knowledge/documents', { params }) as unknown as Promise<KnowledgeDocumentListResponse>
+  // 注意这里的泛型 <any, KnowledgeDocumentListResponse>
+  return request.get<any, KnowledgeDocumentListResponse>('/knowledge/documents', { params })
 }
