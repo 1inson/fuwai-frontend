@@ -56,11 +56,16 @@
                   <th>详细数据</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr v-for="h in ['08:00', '09:00', '10:00', '11:00', '12:00']" :key="h">
-                  <td>{{ h }}</td>
-                  <td><button class="link-btn">查看</button></td>
-                  <td><button class="link-btn">查看</button></td>
+              <tbody v-if="hourlyData.length > 0">
+                <tr v-for="(item, idx) in hourlyData" :key="idx">
+                  <td>{{ formatTime(item.timestamp) }}</td>
+                  <td class="font-bold font-numeric">{{ formatNumber(item.value) }}</td>
+                  <td><button class="link-btn" @click="viewDetailAction(item)">查看</button></td>
+                </tr>
+              </tbody>
+              <tbody v-else>
+                <tr>
+                  <td colspan="3" class="empty-cell">未能获取到当天的小时级数据</td>
                 </tr>
               </tbody>
             </table>
@@ -115,7 +120,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { Icon } from '@iconify/vue'
-import { getBuildingById, BuildingDetailResponse } from '../../api/statistics'
+import { getBuildingById, BuildingDetailResponse, getEnergyQuery, EnergyPoint } from '../../api/statistics'
 
 const props = defineProps<{
   visible: boolean
@@ -127,6 +132,7 @@ const emit = defineEmits(['update:visible'])
 const loading = ref(false)
 const detailData = ref<BuildingDetailResponse | null>(null)
 const anomalyCount = ref(0) // 模拟的异常数
+const hourlyData = ref<EnergyPoint[]>([])
 
 const close = () => {
   emit('update:visible', false)
@@ -136,17 +142,42 @@ const exportData = () => {
   alert('导出功能开发中...')
 }
 
+const viewDetailAction = (item: any) => {
+  alert(`功能开发中: 查看 ${formatTime(item.timestamp)} 时刻的明细`)
+}
+
+const formatTime = (ts: string) => {
+  if (!ts) return ''
+  const d = new Date(ts)
+  return `${String(d.getHours()).padStart(2,'0')}:00`
+}
+
+const formatNumber = (val: number | null | undefined): string => {
+  if (val == null || isNaN(val)) return '0.0'
+  return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
 const fetchData = async () => {
   if (!props.buildingId) return
   loading.value = true
   detailData.value = null
   anomalyCount.value = Math.floor(Math.random() * 3) // mock anomaly count
+  hourlyData.value = []
   
   try {
     const raw = await getBuildingById(props.buildingId)
     detailData.value = (raw as any)?.data ?? raw
+
+    // 并发去拿当天的按小时趋势数据 (通过通用查询接口获取实际的数据点列)
+    const qRaw = await getEnergyQuery({ 
+      building_ids: [props.buildingId],
+      granularity: 'hour',
+      page_size: 5 // 取前几条模拟
+    })
+    const qData = (qRaw as any)?.data ?? qRaw
+    hourlyData.value = qData?.items || []
   } catch (err) {
-    console.error('Failed to fetch building details', err)
+    console.error('Failed to fetch building details or hourly stats', err)
   } finally {
     loading.value = false
   }
