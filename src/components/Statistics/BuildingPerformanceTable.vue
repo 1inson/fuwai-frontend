@@ -76,6 +76,12 @@
         </button>
       </div>
     </div>
+
+    <!-- 弹窗 -->
+    <BuildingDetailsModal 
+      v-model:visible="modalVisible" 
+      :building-id="selectedBuildingId" 
+    />
   </div>
 </template>
 
@@ -83,6 +89,7 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getBuildings, getMeters, getEnergyQuery } from '../../api/statistics'
+import BuildingDetailsModal from './BuildingDetailsModal.vue'
 
 const props = defineProps<{
   startTime: string
@@ -106,6 +113,9 @@ const currentPage = ref(1)
 const pageSize = ref(5)
 const paginationInfo = ref({ total: 0 })
 const totalPages = computed(() => Math.ceil(paginationInfo.value.total / pageSize.value))
+
+const modalVisible = ref(false)
+const selectedBuildingId = ref('')
 
 const unwrap = (res: any) => res?.data ?? res
 
@@ -202,7 +212,8 @@ const fetchData = async () => {
 }
 
 const viewDetails = (row: BuildingRow) => {
-  alert(`功能开发中: 跳转至建筑详情 (${row.building_id})`)
+  selectedBuildingId.value = row.building_id
+  modalVisible.value = true
 }
 
 watch(

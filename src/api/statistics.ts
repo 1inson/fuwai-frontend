@@ -177,12 +177,39 @@ export interface MeterListParams {
     page_size?: number
 }
 
+// ─── Types: Building Detail ─────────────────────────────────────
+export interface MeterAvailability {
+    meter: string
+    available: boolean
+}
+
+export interface MetricCard {
+    key: string
+    label: string
+    value: number
+    unit?: string
+    change_rate?: number
+}
+
+export interface BuildingDetailResponse {
+    building: Building
+    meters: MeterAvailability[]
+    summary_metrics: MetricCard[]
+}
+
 // ─── External API Functions ────────────────────────────────────
 
 /** 获取建筑列表 */
 export const getBuildings = (params?: BuildingListParams) => {
     return request.get<BuildingListResponse>('/buildings', {
         params: { ...params },
+        timeout: 10000
+    })
+}
+
+/** 获取建筑详情 */
+export const getBuildingById = (buildingId: string) => {
+    return request.get<BuildingDetailResponse>(`/buildings/${buildingId}`, {
         timeout: 10000
     })
 }
