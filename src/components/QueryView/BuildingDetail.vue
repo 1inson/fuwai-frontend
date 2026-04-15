@@ -228,11 +228,21 @@
               </svg>
               <h3>小时级多维监控数据</h3>
             </div>
-            <button class="btn-download">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-              </svg>
-            </button>
+            <!-- 新增：按钮组容器，包含筛选和下载按钮 -->
+            <div class="header-actions">
+              <button class="btn-icon btn-filter" @click="showTimeFilter = true" title="时间筛选">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="3" y1="6" x2="21" y2="6"></line>
+                  <line x1="3" y1="12" x2="21" y2="12"></line>
+                  <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+              </button>
+              <button class="btn-icon btn-download" @click="showExportModal = true" title="导出数据">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div class="monitor-table-wrapper">
@@ -278,7 +288,7 @@
           <!-- 分页 -->
           <div class="pagination-wrapper">
             <div class="pagination-info">
-              显示 {{ pagination.start }}-{{ pagination.end }} 到 {{ pagination.total }} 条记录
+              显示 {{ pagination.start }}-{{ pagination.end }} 到 {{ filteredTotal }} 条记录
             </div>
             <div class="pagination-controls">
               <button 
@@ -532,17 +542,54 @@
         </div>
       </div>
     </teleport>
+
+    <!-- 新增：时间维度配置弹窗 -->
+    <TimeFilterModal 
+      v-model:visible="showTimeFilter"
+      @query="handleTimeQuery"
+    />
+
+    <!-- 新增：导出报表弹窗 -->
+    <ExportModal 
+      v-model:visible="showExportModal"
+      @export="handleExport"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+// 新增：导入弹窗组件
+import TimeFilterModal from './TimeFilterModal.vue';
+import ExportModal from './ExportModal.vue';
 
 const route = useRoute();
 const router = useRouter();
 
 const buildingId = computed(() => route.params.id as string || 'BLDG-HQ-A01');
+
+// 新增：弹窗显示状态控制
+const showTimeFilter = ref(false);
+const showExportModal = ref(false);
+
+// 新增：当前系统时间（从设置页面获取，这里使用图二显示的时间：2026年4月15日 20:06:11）
+const currentSystemTime = ref('2026-04-15T20:06:11');
+
+// 新增：时间筛选配置
+const timeFilterConfig = ref({
+  range: 'month',
+  startTime: '',
+  endTime: '',
+  features: {
+    workday: true,
+    workdayPrice: 'peak',
+    weekend: false,
+    weekendPrice: 'valley',
+    holiday: false,
+    holidayPrice: 'valley'
+  }
+});
 
 // 标签页状态
 const activeTab = ref<'metadata' | 'derived'>('derived');
@@ -601,7 +648,7 @@ const metrics = ref({
   euiRate: '104.2'
 });
 
-// 模拟数据（142条）
+// 模拟数据（142条）- 基于2024年5月12日的数据
 const allMonitorData = ref([
   { time: '2024-05-12 08:00' }, { time: '2024-05-12 09:00' },
   { time: '2024-05-12 10:00' }, { time: '2024-05-12 11:00' },
@@ -611,14 +658,43 @@ const allMonitorData = ref([
   { time: '2024-05-12 18:00' }, { time: '2024-05-12 19:00' },
 ]);
 
-// 生成142条模拟数据
-for (let i = 12; i < 142; i++) {
-  const hour = (i % 24).toString().padStart(2, '0');
-  const day = 12 + Math.floor(i / 24);
-  allMonitorData.value.push({ 
-    time: `2024-05-${day.toString().padStart(2, '0')} ${hour}:00` 
+// 生成142条模拟数据（基于当前系统时间2026-04-15生成一些模拟历史数据）
+const generateMockData = () => {
+  const data = [];
+  const current = new Date(currentSystemTime.value);
+  
+  // 生成最近30天的数据，每小时一条
+  for (let i = 0; i < 142; i++) {
+    const date = new Date(current);
+    date.setHours(date.getHours() - i);
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const hour = date.getHours().toString().padStart(2, '0');
+    data.unshift({ time: `${year}-${month}-${day} ${hour}:00` });
+  }
+  return data;
+};
+
+allMonitorData.value = generateMockData();
+
+// 新增：根据时间筛选过滤后的数据
+const filteredData = computed(() => {
+  if (!timeFilterConfig.value.startTime || !timeFilterConfig.value.endTime) {
+    return allMonitorData.value;
+  }
+  
+  const start = new Date(timeFilterConfig.value.startTime);
+  const end = new Date(timeFilterConfig.value.endTime);
+  
+  return allMonitorData.value.filter(item => {
+    const itemTime = new Date(item.time);
+    return itemTime >= start && itemTime <= end;
   });
-}
+});
+
+// 新增：过滤后的总数
+const filteredTotal = computed(() => filteredData.value.length);
 
 // 分页配置 - 固定每页8条
 const PAGE_SIZE = 8;
@@ -630,11 +706,11 @@ const pagination = ref({
   end: PAGE_SIZE
 });
 
-// 当前页展示的数据
+// 修改：使用过滤后的数据进行分页显示
 const displayData = computed(() => {
   const start = (pagination.value.current - 1) * pagination.value.pageSize;
   const end = start + pagination.value.pageSize;
-  return allMonitorData.value.slice(start, end);
+  return filteredData.value.slice(start, end);
 });
 
 // 空白行填充（当数据不足8条时保持高度）
@@ -644,7 +720,8 @@ const emptyRows = computed(() => {
   return Math.max(0, targetRows - currentRows);
 });
 
-const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.pageSize) || 1);
+// 修改：基于过滤后的数据计算总页数
+const totalPages = computed(() => Math.ceil(filteredTotal.value / pagination.value.pageSize) || 1);
 
 const visiblePages = computed(() => {
   const pages: (number | string)[] = [];
@@ -672,9 +749,37 @@ const visiblePages = computed(() => {
 // 更新分页范围显示
 const updatePaginationRange = () => {
   const start = (pagination.value.current - 1) * pagination.value.pageSize + 1;
-  const end = Math.min(start + pagination.value.pageSize - 1, pagination.value.total);
+  const end = Math.min(start + pagination.value.pageSize - 1, filteredTotal.value);
   pagination.value.start = start;
   pagination.value.end = end;
+};
+
+// 新增：处理时间查询
+const handleTimeQuery = (timeConfig: any) => {
+  console.log('时间查询配置：', timeConfig);
+  
+  // 保存筛选配置
+  timeFilterConfig.value = {
+    range: timeConfig.range,
+    startTime: timeConfig.startTime,
+    endTime: timeConfig.endTime,
+    features: timeConfig.features
+  };
+  
+  // 重置到第一页
+  pagination.value.current = 1;
+  
+  // 更新分页信息
+  updatePaginationRange();
+  
+  // 这里可以根据时间配置调用API重新加载数据
+  // 目前使用前端过滤演示效果
+};
+
+// 新增：处理导出
+const handleExport = (exportConfig: { format: string }) => {
+  console.log('导出配置：', exportConfig);
+  // 这里实现实际的导出逻辑
 };
 
 // 弹窗方法
@@ -1083,6 +1188,42 @@ onMounted(() => {
   color: #333;
   font-weight: 600;
   margin: 0;
+}
+
+/* 新增：按钮组容器样式 */
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 新增：图标按钮基础样式 */
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid #d9d9d9;
+  background: white;
+  border-radius: 6px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon:hover {
+  border-color: #1890ff;
+  color: #1890ff;
+  background: #e6f7ff;
+}
+
+/* 新增：筛选按钮特殊样式 */
+.btn-filter:hover {
+  border-color: #52c41a;
+  color: #52c41a;
+  background: #f6ffed;
 }
 
 .btn-download {
