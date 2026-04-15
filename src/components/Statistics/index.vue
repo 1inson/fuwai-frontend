@@ -140,6 +140,10 @@
     <!-- 能耗趋势图 -->
     <EnergyTrendChart :start-time="activeStart" :end-time="activeEnd" />
 
+    <!-- 分站点与分建筑效绩表 -->
+    <SitePerformanceTable :start-time="activeStart" :end-time="activeEnd" />
+    <BuildingPerformanceTable :start-time="activeStart" :end-time="activeEnd" />
+
     <!-- 错误提示 -->
     <div v-if="error" class="error-bar">
       <Icon icon="lucide:alert-circle" class="error-icon" />
@@ -154,6 +158,8 @@ import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import EnergyTrendChart from './EnergyTrendChart.vue'
+import SitePerformanceTable from './SitePerformanceTable.vue'
+import BuildingPerformanceTable from './BuildingPerformanceTable.vue'
 import {
   getEnergyQuery,
   getCopAnalysis,

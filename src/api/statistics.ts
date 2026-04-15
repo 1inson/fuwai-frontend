@@ -120,3 +120,77 @@ export const getEnergyTrendData = (params?: EnergyTrendParams) => {
         timeout: 30000
     })
 }
+
+// ─── Types: Buildings ───────────────────────────────────────────
+export interface Building {
+    building_id: string
+    site_id: string
+    primaryspaceusage: string
+    sub_primaryspaceusage?: string
+    sqm?: number
+    lat?: number
+    lng?: number
+    timezone?: string
+    yearbuilt?: number | null
+    leed_level?: string | null
+}
+
+export interface BuildingListResponse {
+    items: Building[]
+    pagination: Pagination
+}
+
+export interface BuildingListParams {
+    keyword?: string
+    site_id?: string
+    primaryspaceusage?: string
+    page?: number
+    page_size?: number
+}
+
+// ─── Types: Meters ──────────────────────────────────────────────
+export interface MeterSummary {
+    meter_id: string
+    meter_name: string
+    meter_type: string
+    building_id: string
+    status: string
+}
+
+export interface Meter extends MeterSummary {
+    manufacturer?: string | null
+    model?: string | null
+    install_date?: string | null
+    last_seen_at?: string | null
+}
+
+export interface MeterListResponse {
+    items: Meter[]
+    pagination: Pagination
+}
+
+export interface MeterListParams {
+    building_id?: string
+    meter_type?: string
+    status?: 'online' | 'offline' | 'warning' | 'fault'
+    page?: number
+    page_size?: number
+}
+
+// ─── External API Functions ────────────────────────────────────
+
+/** 获取建筑列表 */
+export const getBuildings = (params?: BuildingListParams) => {
+    return request.get<BuildingListResponse>('/buildings', {
+        params: { ...params },
+        timeout: 10000
+    })
+}
+
+/** 获取设备列表 */
+export const getMeters = (params?: MeterListParams) => {
+    return request.get<MeterListResponse>('/meters', {
+        params: { ...params },
+        timeout: 10000
+    })
+}
