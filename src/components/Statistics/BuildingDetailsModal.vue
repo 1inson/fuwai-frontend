@@ -45,7 +45,7 @@
           <div class="card-section monitoring-section">
             <div class="section-top">
               <h3>小时级多维监控数据</h3>
-              <span class="date-badge">2023年10月28日</span>
+              <span class="date-badge">{{ displayDate }}</span>
             </div>
             
             <table class="hourly-table">
@@ -125,6 +125,8 @@ import { getBuildingById, BuildingDetailResponse, getEnergyQuery, EnergyPoint } 
 const props = defineProps<{
   visible: boolean
   buildingId: string
+  startTime?: string
+  endTime?: string
 }>()
 
 const emit = defineEmits(['update:visible'])
@@ -172,7 +174,9 @@ const fetchData = async () => {
     const qRaw = await getEnergyQuery({ 
       building_ids: [props.buildingId],
       granularity: 'hour',
-      page_size: 5 // 取前几条模拟
+      start_time: props.startTime,
+      end_time: props.endTime,
+      page_size: 24 
     })
     const qData = (qRaw as any)?.data ?? qRaw
     hourlyData.value = qData?.items || []
@@ -193,6 +197,14 @@ watch(
 )
 
 // -- Computed Mappings --
+
+const displayDate = computed(() => {
+  let d = new Date()
+  if (props.startTime) {
+    d = new Date(props.startTime)
+  }
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`
+})
 
 const displayMetrics = computed(() => {
   const metrics = detailData.value?.summary_metrics || []

@@ -80,7 +80,9 @@
     <!-- 弹窗 -->
     <BuildingDetailsModal 
       v-model:visible="modalVisible" 
-      :building-id="selectedBuildingId" 
+      :building-id="selectedBuildingId"
+      :start-time="startTime"
+      :end-time="endTime"
     />
   </div>
 </template>
