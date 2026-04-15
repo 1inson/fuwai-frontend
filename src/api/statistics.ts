@@ -221,3 +221,25 @@ export const getMeters = (params?: MeterListParams) => {
         timeout: 10000
     })
 }
+
+// ─── Types: Building Energy Summary ─────────────────────────────
+export interface BuildingEnergySummaryParams {
+    meter?: 'electricity' | 'water' | 'gas' | 'steam' | 'chilledwater' | 'hotwater' | 'irrigation' | 'solar'
+    start_time?: string
+    end_time?: string
+    granularity?: 'hour' | 'day' | 'week' | 'month'
+}
+
+export interface BuildingEnergySummaryResponse {
+    building_id: string
+    time_range: TimeRange
+    summary: EnergySummary
+}
+
+/** 获取建筑级能耗摘要 */
+export const getBuildingEnergySummary = (buildingId: string, params?: BuildingEnergySummaryParams) => {
+    return request.get<BuildingEnergySummaryResponse>(`/buildings/${buildingId}/energy/summary`, {
+        params: { ...params },
+        timeout: 15000
+    })
+}

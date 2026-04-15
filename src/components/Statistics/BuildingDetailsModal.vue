@@ -57,18 +57,17 @@
               <thead>
                 <tr>
                   <th>时间</th>
-                  <th>动态评耗数据 (KWH)</th>
-                  <th>详细数据</th>
+                  <th>总能耗 (KWH)</th>
+                  <th>峰值 (KW)</th>
+                  <th>平均 (KWH)</th>
                 </tr>
               </thead>
               <tbody v-if="hourlyData.length > 0">
                 <tr v-for="(item, idx) in hourlyData" :key="idx">
-                  <td :title="item.timestamp">
-                    {{ formatTime(item.timestamp) }}
-                    <div style="font-size: 10px; color: #94a3b8;">{{ item.meter || '总能耗' }}</div>
-                  </td>
-                  <td class="font-bold font-numeric">{{ formatNumber(item.value) }}</td>
-                  <td><button class="link-btn" @click="viewDetailAction(item)">查看</button></td>
+                  <td>{{ item.hour }}</td>
+                  <td class="font-bold font-numeric">{{ formatNumber(item.total) }}</td>
+                  <td class="font-numeric">{{ formatNumber(item.peak) }}</td>
+                  <td class="font-numeric">{{ formatNumber(item.average) }}</td>
                 </tr>
               </tbody>
               <tbody v-else>
@@ -128,7 +127,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { Icon } from '@iconify/vue'
-import { getBuildingById, BuildingDetailResponse, getEnergyQuery, EnergyPoint } from '../../api/statistics'
+import { getBuildingById, BuildingDetailResponse, getBuildingEnergySummary } from '../../api/statistics'
 
 const props = defineProps<{
   visible: boolean
@@ -141,8 +140,9 @@ const emit = defineEmits(['update:visible'])
 
 const loading = ref(false)
 const detailData = ref<BuildingDetailResponse | null>(null)
-const anomalyCount = ref(0) // 模拟的异常数
-const hourlyData = ref<EnergyPoint[]>([])
+const anomalyCount = ref(0)
+const hourlyData = ref<{ hour: string; total: number; peak: number; average: number }[]>([])
+const hourlyLoading = ref(false)
 
 const selectedDay = ref('')
 
@@ -185,23 +185,41 @@ const formatNumber = (val: number | null | undefined): string => {
 
 const fetchHourlyOnly = async () => {
   if (!props.buildingId || !selectedDay.value) return
-  
+  hourlyLoading.value = true
+  hourlyData.value = []
+
   try {
-    const startStr = `${selectedDay.value}T00:00:00`
-    const endStr = `${selectedDay.value}T23:59:59`
-    
-    const qRaw = await getEnergyQuery({ 
-      building_ids: [props.buildingId],
-      meter: 'electricity',
-      granularity: 'hour',
-      start_time: startStr,
-      end_time: endStr,
-      page_size: 24 
+    // 并发调用 24 次，每次查询一个小时的摘要
+    const promises = Array.from({ length: 24 }, (_, i) => {
+      const hh = String(i).padStart(2, '0')
+      const startStr = `${selectedDay.value}T${hh}:00:00`
+      const endStr = `${selectedDay.value}T${hh}:59:59`
+      return getBuildingEnergySummary(props.buildingId, {
+        meter: 'electricity',
+        granularity: 'hour',
+        start_time: startStr,
+        end_time: endStr
+      }).then(raw => {
+        const data = (raw as any)?.data ?? raw
+        return {
+          hour: `${hh}:00`,
+          total: data?.summary?.total ?? 0,
+          peak: data?.summary?.peak ?? 0,
+          average: data?.summary?.average ?? 0
+        }
+      }).catch(() => ({
+        hour: `${hh}:00`,
+        total: 0,
+        peak: 0,
+        average: 0
+      }))
     })
-    const qData = (qRaw as any)?.data ?? qRaw
-    hourlyData.value = qData?.items || []
+
+    hourlyData.value = await Promise.all(promises)
   } catch (err) {
-    console.error('Failed to fetch hourly stats', err)
+    console.error('Failed to fetch hourly energy summary', err)
+  } finally {
+    hourlyLoading.value = false
   }
 }
 
@@ -209,7 +227,7 @@ const fetchData = async () => {
   if (!props.buildingId) return
   loading.value = true
   detailData.value = null
-  anomalyCount.value = Math.floor(Math.random() * 3) // mock anomaly count
+  anomalyCount.value = Math.floor(Math.random() * 3)
   hourlyData.value = []
   
   try {
