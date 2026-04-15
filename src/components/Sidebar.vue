@@ -38,17 +38,6 @@ import { Icon } from '@iconify/vue'
         <span class="nav-text">设置</span>
       </router-link>
     </nav>
-
-    <div class="bottom-menu">
-      <a href="#" class="nav-item">
-        <Icon icon="lucide:help-circle" class="icon" />
-        <span class="nav-text">支持</span>
-      </a>
-      <a href="#" class="nav-item">
-        <Icon icon="lucide:log-out" class="icon" />
-        <span class="nav-text">退出登录</span>
-      </a>
-    </div>
   </aside>
 </template>
 
@@ -76,7 +65,6 @@ import { Icon } from '@iconify/vue'
 .logo-text p { margin: 0; font-size: 12px; opacity: 0.7; }
 
 .nav-menu { flex: 1; display: flex; flex-direction: column; padding: 0 16px; gap: 8px;}
-.bottom-menu { padding: 0 16px; margin-bottom: 20px; }
 
 .nav-item {
   display: flex;
