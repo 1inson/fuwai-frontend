@@ -242,11 +242,12 @@ const handleClose = () => {
 
 // 修改：改为开始查询，自动关闭弹窗
 const handleQuery = () => {
+  const pad = (val: string | number) => String(val).padStart(2, '0')
   // 构建时间范围对象
   const timeConfig = {
     range: form.timeRange,
-    startTime: `${form.startTime.year}-${form.startTime.month}-${form.startTime.day} ${form.startTime.hour}:00:00`,
-    endTime: `${form.endTime.year}-${form.endTime.month}-${form.endTime.day} ${form.endTime.hour}:59:59`,
+    startTime: `${form.startTime.year}-${pad(form.startTime.month)}-${pad(form.startTime.day)}T${pad(form.startTime.hour)}:00:00`,
+    endTime: `${form.endTime.year}-${pad(form.endTime.month)}-${pad(form.endTime.day)}T${pad(form.endTime.hour)}:59:59`,
     features: form.timeFeatures
   }
   

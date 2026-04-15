@@ -122,7 +122,7 @@
         </template>
         <template v-else-if="copSummary">
           <div class="kpi-value-row">
-            <span class="kpi-value">{{ copSummary.avg_cop.toFixed(2) }}</span>
+            <span class="kpi-value">{{ copSummary.avg_cop != null ? Number(copSummary.avg_cop).toFixed(2) : '—' }}</span>
             <span class="cop-rating-dot" :class="copRatingClass"></span>
           </div>
           <div class="kpi-extra cop-rating">
