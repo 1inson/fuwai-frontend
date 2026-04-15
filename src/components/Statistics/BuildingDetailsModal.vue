@@ -45,7 +45,9 @@
           <div class="card-section monitoring-section">
             <div class="section-top">
               <h3>小时级多维监控数据</h3>
-              <span class="date-badge">{{ displayDate }}</span>
+              <button class="date-badge interactive" @click="showTimeFilter = true" title="点击选择时间范围">
+                {{ displayDate }} <Icon icon="lucide:calendar" class="ml-1" style="font-size: 10px;" />
+              </button>
             </div>
             
             <table class="hourly-table">
@@ -114,6 +116,12 @@
         </button>
       </div>
     </div>
+
+    <!-- 内嵌的时间选择器模块 -->
+    <TimeFilterModal 
+      v-model:visible="showTimeFilter" 
+      @query="handleTimeFilter" 
+    />
   </div>
 </template>
 
@@ -121,6 +129,7 @@
 import { ref, watch, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getBuildingById, BuildingDetailResponse, getEnergyQuery, EnergyPoint } from '../../api/statistics'
+import TimeFilterModal from '../QueryView/TimeFilterModal.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -135,6 +144,13 @@ const loading = ref(false)
 const detailData = ref<BuildingDetailResponse | null>(null)
 const anomalyCount = ref(0) // 模拟的异常数
 const hourlyData = ref<EnergyPoint[]>([])
+
+const showTimeFilter = ref(false)
+const localStartTime = ref(props.startTime)
+const localEndTime = ref(props.endTime)
+
+watch(() => props.startTime, (v) => localStartTime.value = v)
+watch(() => props.endTime, (v) => localEndTime.value = v)
 
 const close = () => {
   emit('update:visible', false)
@@ -174,8 +190,8 @@ const fetchData = async () => {
     const qRaw = await getEnergyQuery({ 
       building_ids: [props.buildingId],
       granularity: 'hour',
-      start_time: props.startTime,
-      end_time: props.endTime,
+      start_time: localStartTime.value,
+      end_time: localEndTime.value,
       page_size: 24 
     })
     const qData = (qRaw as any)?.data ?? qRaw
@@ -185,6 +201,14 @@ const fetchData = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const handleTimeFilter = (config: any) => {
+  // 根据队友的组件，它返回 config.startTime, config.endTime
+  localStartTime.value = config.startTime
+  localEndTime.value = config.endTime
+  // 重新获取小时数据
+  fetchData()
 }
 
 watch(
@@ -200,9 +224,16 @@ watch(
 
 const displayDate = computed(() => {
   let d = new Date()
-  if (props.startTime) {
-    d = new Date(props.startTime)
+  if (localStartTime.value) {
+    // 处理带空格日期 "2023-10-01 00:00:00" -> 兼容苹果的话可以 replace '-'
+    const safeStr = localStartTime.value.replace(/-/g, '/')
+    d = new Date(safeStr)
   }
+  
+  if (isNaN(d.getTime())) {
+    d = new Date()
+  }
+
   return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`
 })
 
@@ -443,6 +474,19 @@ function getMockPct(name: string) {
   border-radius: 4px;
   color: #64748b;
   font-weight: 600;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.date-badge.interactive {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.date-badge.interactive:hover {
+  background: #e2e8f0;
+  color: #0b4582;
 }
 
 .hourly-table {
