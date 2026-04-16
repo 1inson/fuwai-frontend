@@ -44,6 +44,18 @@
           </select>
         </div>
 
+        <!-- 时间范围筛选（新增） -->
+        <div class="filter-item">
+          <label>时间范围</label>
+          <select v-model="filterForm.timeRange" class="select-box">
+            <option value="today">今日</option>
+            <option value="week">本周</option>
+            <option value="month">本月</option>
+            <option value="quarter">本季</option>
+            <option value="year">本年</option>
+          </select>
+        </div>
+
         <div class="button-group">
           <button class="btn btn-primary-dark" @click="showAdvanced = true">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
@@ -161,12 +173,12 @@
   :filter-form="filterForm"
   :advanced-filters="advancedFilters"
   :sort-config="sortConfig"
+  :time-range="(filterForm.timeRange as 'today' | 'week' | 'month' | 'quarter' | 'year')"
   @view="handleView" 
   @suggest="handleSuggest" 
   @fault="handleFault"
 />
 
-    
     <!-- 高级筛选弹窗 -->
     <FilterModal 
       v-model:visible="showAdvanced" 
@@ -278,7 +290,7 @@ import axios from 'axios';
 import { useRouter } from 'vue-router';
 import FilterModal from './FilterModal.vue';
 import BuildingTable from './BuildingTable.vue'  // 根据实际路径调整
-import ExportModal from './ExportModal.vue'  // 根据实际路径调整
+import ExportModal from './ExportModal.vue'  
 
 const router = useRouter();
 const showAdvanced = ref(false);
@@ -298,9 +310,9 @@ const selectedBuildings = ref<string[]>([]);
 
 // 筛选表单
 const filterForm = ref({
-  status: ''
+  status: '',
+  timeRange: 'today' // 默认今日
 });
-
 const advancedFilters = ref<Record<string, any>>({});
 
 const hasActiveAdvancedFilters = computed(() => {
@@ -315,7 +327,7 @@ const hasActiveAdvancedFilters = computed(() => {
 });
 
 const sortConfig = ref({
-  field: 'eui' as 'eui' | 'totalEnergy' | 'status' | 'cop' | 'carbonEmission',
+  field: 'eui' as 'eui' | 'totalEnergy' | 'status' | 'carbonEmission',
   order: 'asc' as 'asc' | 'desc'
 });
 
@@ -333,7 +345,6 @@ interface BuildingItem {
   status: 'normal' | 'warning' | 'error';
   statusText: string;
   totalEnergy: number;
-  cop: number;
   eui: number;
   carbonEmission: number;
   [key: string]: any;
