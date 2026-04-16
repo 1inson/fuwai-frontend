@@ -32,16 +32,6 @@
           </select>
         </div>
 
-        <!-- 时间范围（图二中有，保留视觉） -->
-        <div class="filter-item">
-          <label>时间范围</label>
-          <select class="select-box">
-            <option>今日</option>
-            <option>本周</option>
-            <option>本月</option>
-          </select>
-        </div>
-
         <div class="button-group">
           <button class="btn btn-primary-dark" @click="showAdvanced = true">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
@@ -58,7 +48,6 @@
             高级查询
           </button>
           <button class="btn btn-outline" @click="handleReset">重置</button>
-          <button class="btn btn-primary" @click="handleSearch">查询</button>
         </div>
       </div>
     </div>
@@ -105,6 +94,12 @@
               @click="handleSort('status')"
             >
               系统状态
+            </button>
+            <button 
+              :class="['sort-tag', { active: sortConfig.field === 'carbonEmission' }]"
+              @click="handleSort('carbonEmission')"
+            >
+              碳排放
             </button>
           </div>
           
@@ -263,43 +258,11 @@
       @save="handleAdvancedSave"
     />
 
-    <!-- 导出格式选择弹窗 -->
-    <div v-if="showExportModal" class="modal-overlay" @click.self="closeExportModal">
-      <div class="export-modal">
-        <div class="modal-header">
-          <h3>导出运行数据</h3>
-          <button class="close-btn" @click="closeExportModal">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="form-label">容器</div>
-          <div class="export-format-list">
-            <label 
-              class="format-item active"
-              @click="selectedFormat = 'markdown'"
-            >
-              <div class="format-icon">i</div>
-              <span class="format-name">Markdown (.md)</span>
-            </label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-default" @click="closeExportModal">取消</button>
-          <button class="btn-primary" @click="confirmExport">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            开始导出
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- 导出运行数据弹窗 - 复用 ExportModal 组件 -->
+    <ExportModal 
+      v-model:visible="showExportModal" 
+      @export="handleExportConfirm"
+    />
 
     <!-- AI 助手悬浮按钮 -->
     <div class="ai-assistant-container">
@@ -397,11 +360,11 @@
 import { ref, computed, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import FilterModal from './FilterModal.vue';
+import ExportModal from './ExportModal.vue'; // 引入 ExportModal 组件
 
 const router = useRouter();
 const showAdvanced = ref(false);
-const showExportModal = ref(false);
-const selectedFormat = ref('markdown');
+const showExportModal = ref(false); // 控制 ExportModal 显示
 
 // 导出相关状态
 const isExportMode = ref(false);
@@ -597,31 +560,33 @@ const getCopClass = (cop: number) => {
   return 'low';
 };
 
+// 修改后的导出点击逻辑
 const handleExportClick = () => {
   if (!isExportMode.value) {
+    // 第一次点击：进入选择模式
     isExportMode.value = true;
     selectedBuildings.value = [];
   } else {
+    // 已在选择模式，点击确认导出
     if (selectedBuildings.value.length === 0) {
       alert('请至少选择一项建筑数据');
       return;
     }
+    // 显示导出弹窗（复用 ExportModal）
     showExportModal.value = true;
   }
 };
 
-const cancelExportMode = () => {
+// 处理导出确认
+const handleExportConfirm = (exportData: { format: string }) => {
+  console.log('导出数据:', exportData);
+  alert(`已将 ${selectedBuildings.value.length} 条数据导出为 Markdown (.md) 格式`);
+  // 重置导出状态
   isExportMode.value = false;
   selectedBuildings.value = [];
 };
 
-const closeExportModal = () => {
-  showExportModal.value = false;
-};
-
-const confirmExport = () => {
-  alert(`已将 ${selectedBuildings.value.length} 条数据导出为 Markdown (.md) 格式`);
-  showExportModal.value = false;
+const cancelExportMode = () => {
   isExportMode.value = false;
   selectedBuildings.value = [];
 };
@@ -1317,107 +1282,6 @@ h1 {
   cursor: pointer;
   font-size: 14px;
   text-decoration: underline;
-}
-
-/* 弹窗 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  padding: 20px;
-}
-
-.export-modal {
-  background: white;
-  border-radius: 8px;
-  width: 100%;
-  max-width: 480px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-}
-
-.modal-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid #F0F0F0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #002B54;
-}
-
-.close-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #999;
-}
-
-.modal-body {
-  padding: 24px;
-}
-
-.form-label {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 12px;
-}
-
-.export-format-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.format-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid #005BAC;
-  border-radius: 8px;
-  cursor: pointer;
-  background: #E6F7FF;
-}
-
-.format-icon {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  background: #005BAC;
-  border-radius: 50%;
-  font-style: italic;
-  font-weight: 600;
-}
-
-.modal-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #F0F0F0;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  background: #FAFAFA;
-  border-radius: 0 0 8px 8px;
 }
 
 /* AI 助手容器 */
