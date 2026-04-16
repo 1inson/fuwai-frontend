@@ -288,6 +288,37 @@ export interface ReportStatusResponse {
     [key: string]: any
 }
 
+export interface ReportHourlyItem {
+    hour: string
+    total: number
+    peak: number
+    average: number
+}
+
+export interface ReportSummaryMetric {
+    key: string
+    label: string
+    value: number
+    unit?: string
+}
+
+export interface ReportDetailData {
+    hourly_data: ReportHourlyItem[]
+    summary_metrics: ReportSummaryMetric[]
+}
+
+export interface ReportDetailResponse {
+    report_id: string
+    report_type: string
+    status: 'queued' | 'processing' | 'ready' | 'failed'
+    building_id: string
+    time_range: TimeRange
+    created_at: string
+    completed_at?: string
+    ai_summary?: string
+    data?: ReportDetailData
+}
+
 /** 1. 创建报表生成任务 */
 export const generateReport = (data: GenerateReportRequest) => {
     return request.post<GenerateReportResponse>('/reports/generate', data, {
@@ -300,6 +331,14 @@ export const generateReport = (data: GenerateReportRequest) => {
 export const getReportStatus = (reportId: string) => {
     return request.get<ReportStatusResponse>(`/reports/${reportId}`, {
         params: { download: false },
+        timeout: 30000
+    })
+}
+
+/** 2.5 获取报表详情（含 AI 摘要和结构化数据，用于前端预览） */
+export const getReportDetail = (reportId: string) => {
+    return request.get<ReportDetailResponse>(`/reports/${reportId}`, {
+        params: { detail: true },
         timeout: 30000
     })
 }

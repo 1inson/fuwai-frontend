@@ -80,6 +80,94 @@
         </div>
       </div>
 
+      <!-- 报表预览区域 -->
+      <div class="report-preview-overlay" v-if="showReportPreview && reportDetail">
+        <div class="report-preview-panel">
+          <div class="preview-header">
+            <h3>报表预览</h3>
+            <button class="close-btn" @click="closeReportPreview">
+              <Icon icon="lucide:x" />
+            </button>
+          </div>
+          <div class="preview-body">
+            <div class="preview-meta">
+              <div class="meta-item">
+                <span class="meta-label">报表类型</span>
+                <span class="meta-value">{{ reportDetail.report_type }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">建筑 ID</span>
+                <span class="meta-value">{{ reportDetail.building_id }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">时间范围</span>
+                <span class="meta-value">{{ reportDetail.time_range?.start?.slice(0,10) }} ~ {{ reportDetail.time_range?.end?.slice(0,10) }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">生成时间</span>
+                <span class="meta-value">{{ reportDetail.completed_at || reportDetail.created_at }}</span>
+              </div>
+            </div>
+
+            <div class="preview-ai-summary" v-if="reportDetail.ai_summary">
+              <h4>AI 智能分析</h4>
+              <div class="ai-summary-content">{{ reportDetail.ai_summary }}</div>
+            </div>
+
+            <div class="preview-metrics" v-if="reportDetail.data?.summary_metrics?.length">
+              <h4>关键指标</h4>
+              <div class="metrics-grid">
+                <div class="metric-card" v-for="m in reportDetail.data.summary_metrics" :key="m.key">
+                  <span class="metric-label">{{ m.label }}</span>
+                  <span class="metric-value">
+                    {{ m.value?.toLocaleString() }}
+                    <span v-if="m.unit" class="metric-unit">{{ m.unit }}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="preview-hourly" v-if="reportDetail.data?.hourly_data?.length">
+              <h4>小时级数据</h4>
+              <table class="preview-hourly-table">
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>总能耗 (KWH)</th>
+                    <th>峰值 (KW)</th>
+                    <th>平均 (KWH)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, idx) in reportDetail.data.hourly_data" :key="idx">
+                    <td>{{ item.hour }}</td>
+                    <td class="font-numeric">{{ formatNumber(item.total) }}</td>
+                    <td class="font-numeric">{{ formatNumber(item.peak) }}</td>
+                    <td class="font-numeric">{{ formatNumber(item.average) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="preview-footer">
+            <button class="btn btn-default" @click="closeReportPreview">关闭预览</button>
+            <button class="btn btn-primary btn-icon" @click="downloadCurrentReport" :disabled="downloadingReport">
+              <Icon v-if="downloadingReport" icon="lucide:loader-2" class="spin mr-1" />
+              <span v-if="downloadingReport">下载中...</span>
+              <template v-else>
+                下载报表 <Icon icon="lucide:download" class="ml-1" />
+              </template>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 加载中遮罩 -->
+      <div class="loading-overlay" v-if="reportLoading">
+        <Icon icon="lucide:loader-2" class="spin" />
+        <span>正在加载报表详情...</span>
+      </div>
+
       <!-- 模态框底部 -->
       <div class="modal-footer">
         <button class="btn btn-default" @click="close">返回</button>
@@ -88,10 +176,19 @@
         </button>
         <button class="btn btn-primary btn-icon" @click="showExportModal = true" :disabled="exporting">
           <Icon v-if="exporting" icon="lucide:loader-2" class="spin mr-1" />
-          <span v-if="exporting">正在导出...</span>
+          <span v-if="exporting">正在生成报表...</span>
           <template v-else>
             导出数据 <Icon icon="lucide:external-link" class="ml-1" />
           </template>
+        </button>
+        <button 
+          v-if="currentReportId && !showReportPreview" 
+          class="btn btn-accent btn-icon" 
+          @click="viewReportDetail(currentReportId)" 
+          :disabled="reportLoading"
+        >
+          <Icon icon="lucide:eye" class="mr-1" />
+          查看报表
         </button>
       </div>
     </div>
@@ -111,6 +208,8 @@ import {
   getBuildingEnergySummary,
   generateReport,
   getReportStatus,
+  getReportDetail,
+  type ReportDetailResponse,
   downloadReport,
   deleteReport
 } from '../../api/statistics'
@@ -132,6 +231,12 @@ const hourlyLoading = ref(false)
 
 const showExportModal = ref(false)
 const exporting = ref(false)
+
+const showReportPreview = ref(false)
+const reportDetail = ref<ReportDetailResponse | null>(null)
+const currentReportId = ref('')
+const reportLoading = ref(false)
+const downloadingReport = ref(false)
 
 const selectedDay = ref('')
 
@@ -160,12 +265,13 @@ const exportData = () => {
 const executeExportTasks = async (payload: { format: string }) => {
   if (!props.buildingId) return
   exporting.value = true
+  showReportPreview.value = false
+  reportDetail.value = null
   
   try {
     const timeStart = `${selectedDay.value}T00:00:00Z`
     const timeEnd = `${selectedDay.value}T23:59:59Z`
     
-    // 1. 发起任务 (利用修复后的 unwrap 解包)
     const unwrap = (res: any) => res?.data ?? res
     
     const reqRaw = await generateReport({
@@ -178,49 +284,90 @@ const executeExportTasks = async (payload: { format: string }) => {
     const reportId = reqData?.report_id
     
     if (!reportId) throw new Error('接口未返回 report_id')
+    currentReportId.value = reportId
     
-    // 2. 轮询状态
     let isReady = false
-    while (!isReady) {
+    let maxPoll = 15
+    while (!isReady && maxPoll > 0) {
       await new Promise(res => setTimeout(res, 2000))
       const statRaw = await getReportStatus(reportId)
       const statData = unwrap(statRaw)
-      if (statData?.status === 'ready') {
+      
+      if (statData?.status === 'ready' || statData?.status === undefined) {
         isReady = true
       } else if (statData?.status === 'failed') {
         throw new Error('报表生成失败')
       }
+      maxPoll--
     }
-    
-    // 3. 取文件流并下载
-    const blobRaw = await downloadReport(reportId, payload.format || 'md')
-    // 同样需要针对可能的数据裹夹处理，但如果是纯 blob 就不该有包裹，安全提取：
-    let blob = blobRaw
-    if (blobRaw && blobRaw.data instanceof Blob) {
-      blob = blobRaw.data
-    } else if (!(blobRaw instanceof Blob)) {
-      // 容错: 强制转化为Blob
-      blob = new Blob([blobRaw], { type: 'text/markdown;charset=utf-8' })
-    }
-    
-    const downloadUrl = window.URL.createObjectURL(blob as Blob)
 
-    const link = document.createElement('a')
-    link.href = downloadUrl
-    link.setAttribute('download', `building_${props.buildingId}_report_${selectedDay.value}.${payload.format || 'md'}`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(downloadUrl)
+    if (!isReady) throw new Error('报表生成超时，部分设备可能离线或网络异常')
     
-    // 4. 清理暂存报表
-    await deleteReport(reportId)
+    await viewReportDetail(reportId)
     
   } catch (err: any) {
     alert('导出异常: ' + (err.message || '未知错误'))
     console.error(err)
   } finally {
     exporting.value = false
+  }
+}
+
+const viewReportDetail = async (reportId: string) => {
+  reportLoading.value = true
+  try {
+    const unwrap = (res: any) => res?.data ?? res
+    const raw = await getReportDetail(reportId)
+    reportDetail.value = unwrap(raw)
+    showReportPreview.value = true
+  } catch (err: any) {
+    console.error('获取报表详情失败', err)
+    alert('获取报表详情失败: ' + (err.message || '未知错误'))
+  } finally {
+    reportLoading.value = false
+  }
+}
+
+const downloadCurrentReport = async () => {
+  if (!currentReportId.value) return
+  downloadingReport.value = true
+  try {
+    const blobRaw = await downloadReport(currentReportId.value, 'md')
+    let blob: Blob
+    if (blobRaw && (blobRaw as any).data instanceof Blob) {
+      blob = (blobRaw as any).data
+    } else if (blobRaw instanceof Blob) {
+      blob = blobRaw
+    } else {
+      blob = new Blob([blobRaw as any], { type: 'text/markdown;charset=utf-8' })
+    }
+    
+    const downloadUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.setAttribute('download', `building_${props.buildingId}_report_${selectedDay.value}.md`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(downloadUrl)
+  } catch (err: any) {
+    alert('下载失败: ' + (err.message || '未知错误'))
+    console.error(err)
+  } finally {
+    downloadingReport.value = false
+  }
+}
+
+const closeReportPreview = async () => {
+  showReportPreview.value = false
+  reportDetail.value = null
+  if (currentReportId.value) {
+    try {
+      await deleteReport(currentReportId.value)
+    } catch {
+      // ignore cleanup errors
+    }
+    currentReportId.value = ''
   }
 }
 
@@ -397,6 +544,7 @@ function getMockPct(name: string) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
   font-family: 'Plus Jakarta Sans', -apple-system, 'PingFang SC', sans-serif;
 }
 
@@ -721,6 +869,7 @@ function getMockPct(name: string) {
 
 /* Common */
 .ml-1 { margin-left: 4px; }
+.mr-1 { margin-right: 4px; }
 .loading-state {
   display: flex;
   flex-direction: column;
@@ -737,4 +886,225 @@ function getMockPct(name: string) {
 }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* Report Preview Overlay */
+.report-preview-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(241, 245, 249, 0.97);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.report-preview-panel {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.preview-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0b4582;
+}
+
+.preview-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.preview-meta {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.meta-label {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.meta-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.preview-ai-summary {
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+  border-radius: 10px;
+  padding: 20px;
+  border: 1px solid #bfdbfe;
+}
+
+.preview-ai-summary h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0b4582;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-summary-content {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #334155;
+  white-space: pre-wrap;
+}
+
+.preview-metrics {
+  margin-bottom: 24px;
+}
+
+.preview-metrics h4,
+.preview-hourly h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid #f1f5f9;
+  transition: all 0.2s;
+}
+
+.metric-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.metric-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.metric-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0b4582;
+}
+
+.metric-unit {
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-left: 2px;
+}
+
+.preview-hourly-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: center;
+  font-size: 13px;
+}
+
+.preview-hourly-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  padding: 10px;
+  background: #f8fafc;
+  position: sticky;
+  top: 0;
+}
+
+.preview-hourly-table td {
+  padding: 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #0f172a;
+}
+
+.preview-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.btn-accent {
+  background: #059669;
+  color: white;
+}
+.btn-accent:hover {
+  background: #047857;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.85);
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #0b4582;
+  font-weight: 600;
+}
+
+.font-numeric {
+  font-variant-numeric: tabular-nums;
+}
 </style>
