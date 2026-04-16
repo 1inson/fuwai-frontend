@@ -347,11 +347,120 @@ export const aiAnalyzeAnomaly = (data: AIAnalyzeAnomalyRequest) => {
   })
 }
 
-/** AI 运维指导 */
+/** AI 运维指导（普通 POST，保留兼容） */
 export const getOpsGuide = (data: OpsGuideRequest) => {
   return request.post<OpsGuideResponse>('/ai/ops-guide', data, {
-    timeout: 120000
+    timeout: 300000
   })
+}
+
+export interface OpsGuideSSEEvent {
+  event: string
+  data: any
+}
+
+export interface AIStatusResponse {
+  status: string
+  message?: string
+  progress?: number
+  current_tool?: string
+  [key: string]: any
+}
+
+export const getAIStatus = () => {
+  return request.get<AIStatusResponse>('/ai/status', {
+    timeout: 10000
+  })
+}
+
+export function connectOpsGuideStream(
+  data: OpsGuideRequest,
+  onEvent: (event: OpsGuideSSEEvent) => void,
+  onError?: (err: Error) => void,
+  onComplete?: (fullResult: OpsGuideResponse | null) => void
+): AbortController {
+  const controller = new AbortController()
+
+  const baseURL = '/api'
+  const url = `${baseURL}/ai/ops-guide`
+
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'text/event-stream'
+    },
+    body: JSON.stringify(data),
+    signal: controller.signal
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const errorText = await response.text()
+        let detail = errorText
+        try {
+          const errorJson = JSON.parse(errorText)
+          detail = errorJson.detail || errorJson.message || errorText
+        } catch {}
+        throw new Error(`HTTP ${response.status}: ${detail}`)
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null, SSE not supported')
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let fullResult: OpsGuideResponse | null = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        let currentEvent = ''
+        let currentData = ''
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            currentEvent = line.slice(6).trim()
+          } else if (line.startsWith('data:')) {
+            currentData = line.slice(5).trim()
+          } else if (line === '' && (currentEvent || currentData)) {
+            try {
+              const parsed = JSON.parse(currentData)
+              const sseEvent: OpsGuideSSEEvent = {
+                event: currentEvent || 'message',
+                data: parsed
+              }
+              onEvent(sseEvent)
+
+              if (currentEvent === 'complete' || currentEvent === 'done') {
+                fullResult = parsed
+              }
+            } catch {
+              onEvent({
+                event: currentEvent || 'message',
+                data: currentData
+              })
+            }
+            currentEvent = ''
+            currentData = ''
+          }
+        }
+      }
+
+      onComplete?.(fullResult)
+    })
+    .catch((err) => {
+      if (err.name === 'AbortError') return
+      onError?.(err)
+    })
+
+  return controller
 }
 
 /** 提交异常反馈 */

@@ -94,7 +94,8 @@
 
             <div v-if="opsLoading" class="ops-loading">
               <Icon icon="lucide:loader-2" class="spin" />
-              <span>AI 正在分析运维数据，请稍候...</span>
+              <span>{{ opsProgressMsg || 'AI 正在分析运维数据，请稍候...' }}</span>
+              <button class="cancel-ops-btn" @click="cancelOpsGuide">取消</button>
             </div>
 
             <div v-else-if="opsError" class="ops-error">
@@ -217,7 +218,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onUnmounted } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
 import { 
@@ -226,8 +227,9 @@ import {
   getBuildingEnergySummary
 } from '../../api/statistics'
 import {
-  getOpsGuide,
-  type OpsGuideResponse
+  connectOpsGuideStream,
+  type OpsGuideResponse,
+  type OpsGuideSSEEvent
 } from '../../api/anomaly'
 
 const props = defineProps<{
@@ -250,6 +252,8 @@ const exporting = ref(false)
 const opsLoading = ref(false)
 const opsError = ref('')
 const opsResult = ref<OpsGuideResponse | null>(null)
+const opsProgressMsg = ref('')
+const opsAbortController = ref<AbortController | null>(null)
 
 const selectedDay = ref('')
 
@@ -270,14 +274,15 @@ const close = () => {
   emit('update:visible', false)
 }
 
-const exportData = async () => {
+const exportData = () => {
   if (!props.buildingId) return
   opsLoading.value = true
   opsError.value = ''
   opsResult.value = null
+  opsProgressMsg.value = '正在连接 AI 服务...'
 
-  try {
-    const res = await getOpsGuide({
+  const controller = connectOpsGuideStream(
+    {
       question: `建筑 ${props.buildingId} 的运维分析`,
       guide_mode: 'standard_sop',
       context: {
@@ -295,15 +300,131 @@ const exportData = async () => {
       include_knowledge: true,
       include_history: true,
       include_actions: true
-    }) as any
-    opsResult.value = res
-  } catch (err: any) {
-    console.error('AI 运维分析失败:', err)
-    opsError.value = err?.response?.data?.detail || err?.message || 'AI 运维分析请求失败'
-  } finally {
-    opsLoading.value = false
+    },
+    (event: OpsGuideSSEEvent) => {
+      handleOpsSSEEvent(event)
+    },
+    (err: Error) => {
+      opsLoading.value = false
+      opsAbortController.value = null
+      opsError.value = err.message || 'AI 运维分析请求失败'
+    },
+    (fullResult: OpsGuideResponse | null) => {
+      opsLoading.value = false
+      opsAbortController.value = null
+      if (fullResult) {
+        opsResult.value = fullResult
+      }
+    }
+  )
+
+  opsAbortController.value = controller
+}
+
+const handleOpsSSEEvent = (event: OpsGuideSSEEvent) => {
+  const { event: eventType, data } = event
+
+  switch (eventType) {
+    case 'status':
+    case 'progress':
+      opsProgressMsg.value = data?.message || data?.status || JSON.stringify(data)
+      break
+    case 'summary':
+      if (!opsResult.value) {
+        opsResult.value = {
+          incident_id: '',
+          status: 'streaming',
+          summary: data?.summary || data || '',
+          steps: [],
+          meta: { generated_at: new Date().toISOString(), model: '' }
+        }
+      } else {
+        opsResult.value.summary = data?.summary || data || ''
+      }
+      break
+    case 'preconditions':
+      if (opsResult.value) {
+        opsResult.value.preconditions = Array.isArray(data) ? data : data?.preconditions || []
+      }
+      break
+    case 'step':
+      if (opsResult.value) {
+        const step = data?.step || data
+        if (step) {
+          const existing = opsResult.value.steps.findIndex(s => s.step_id === step.step_id)
+          if (existing >= 0) {
+            opsResult.value.steps[existing] = step
+          } else {
+            opsResult.value.steps.push(step)
+          }
+        }
+      }
+      break
+    case 'evidence':
+      if (opsResult.value) {
+        opsResult.value.evidence = Array.isArray(data) ? data : data?.evidence || []
+      }
+      break
+    case 'actions':
+      if (opsResult.value) {
+        opsResult.value.actions = Array.isArray(data) ? data : data?.actions || []
+      }
+      break
+    case 'risk_notice':
+      if (opsResult.value) {
+        opsResult.value.risk_notice = Array.isArray(data) ? data : data?.risk_notice || []
+      }
+      break
+    case 'applicability':
+      if (opsResult.value) {
+        opsResult.value.applicability = data?.applicability || data
+      }
+      break
+    case 'diagnosis_snapshot':
+      if (opsResult.value) {
+        opsResult.value.diagnosis_snapshot = data?.diagnosis_snapshot || data
+      }
+      break
+    case 'meta':
+      if (opsResult.value) {
+        opsResult.value.meta = data?.meta || data
+      }
+      break
+    case 'complete':
+    case 'done':
+      opsLoading.value = false
+      if (data && typeof data === 'object' && data.steps) {
+        opsResult.value = data
+      }
+      opsProgressMsg.value = ''
+      break
+    case 'error':
+      opsLoading.value = false
+      opsError.value = data?.message || data?.detail || 'AI 运维分析出错'
+      opsProgressMsg.value = ''
+      break
+    default:
+      if (data && typeof data === 'object' && data.steps) {
+        opsResult.value = data
+        opsLoading.value = false
+        opsProgressMsg.value = ''
+      }
+      break
   }
 }
+
+const cancelOpsGuide = () => {
+  if (opsAbortController.value) {
+    opsAbortController.value.abort()
+    opsAbortController.value = null
+  }
+  opsLoading.value = false
+  opsProgressMsg.value = ''
+}
+
+onUnmounted(() => {
+  cancelOpsGuide()
+})
 
 const exportMarkdown = () => {
   if (!detailData.value && hourlyData.value.length === 0) {
@@ -897,6 +1018,24 @@ function getMockPct(name: string) {
 
 .ops-loading .spin {
   font-size: 20px;
+}
+
+.cancel-ops-btn {
+  margin-left: 12px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.cancel-ops-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .ops-error {
