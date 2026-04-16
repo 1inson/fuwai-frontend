@@ -16,7 +16,17 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in data" :key="item.id">
+          <tr v-if="loading">
+            <td colspan="8" style="text-align: center; padding: 40px; color: #999;">
+              数据加载中...
+            </td>
+          </tr>
+          <tr v-else-if="buildings.length === 0">
+            <td colspan="8" style="text-align: center; padding: 40px; color: #999;">
+              暂无数据
+            </td>
+          </tr>
+          <tr v-else v-for="item in buildings" :key="item.id">
             <td>
               <div class="building-id">{{ item.buildingId }}</div>
             </td>
@@ -64,14 +74,7 @@
           </tr>
         </tbody>
       </table>
-    </div>
 
-    <!-- 分页栏（从 index.vue 移到这里） -->
-    <div class="pagination-bar" v-if="pagination && pagination.total > 0">
-      <div class="pagination-info">
-        显示第 {{ displayStart }}-{{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行记录
-      </div>
-      
       <div class="pagination-controls">
         <!-- 上一页 -->
         <button 
@@ -110,7 +113,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
+import axios from 'axios'
 
 interface TableItem {
   id: string
@@ -130,37 +134,124 @@ interface PaginationInfo {
   total: number
 }
 
+// 不再接收外部死数据，完全自主获取
 const props = defineProps<{
-  data: TableItem[]
-  pagination?: PaginationInfo  // 新增：分页信息
+  filterForm?: {
+    status?: string
+  },
+  advancedFilters?: Record<string, any>,
+  sortConfig?: {
+    field: string,
+    order: 'asc' | 'desc'
+  }
 }>()
 
-const emit = defineEmits(['view', 'suggest', 'fault', 'page-change'])
+// 注意：computed/ref/onMounted/watch 已经在第1行导入过了，这里不需要再导入
+
+// 模板直接使用 buildings，不需要 displayData
+
+const emit = defineEmits(['view', 'suggest', 'fault'])
+
+// 内部数据状态（自主管理）- 必须先声明
+const buildings = ref<TableItem[]>([])
+const pagination = ref({
+  currentPage: 1,
+  pageSize: 7,  // 一页七个
+  total: 0
+})
+const loading = ref(false)
+
+const getStatusText = (status: string): string => {
+  const map: Record<string, string> = {
+    'normal': '运行正常',
+    'warning': '告警',
+    'error': '异常'
+  }
+  return map[status] || '运行正常'
+}
+
+// 获取建筑列表数据
+const fetchBuildings = async () => {
+  // 强制获取接口数据，不再兼容外部传入的死数据
+  loading.value = true
+  try {
+// 根据你提供的接口地址，应该是 /api/meters（代理会转发到虚拟机）
+const response = await axios.get('/api/meters', {
+  params: {
+    page: pagination.value.currentPage,
+    page_size: pagination.value.pageSize,
+    // 将筛选条件传递给后端
+    status: props.filterForm?.status || undefined,
+    building_id: props.advancedFilters?.buildingId || undefined,
+    site: props.advancedFilters?.site || undefined,
+    sort_field: props.sortConfig?.field || undefined,
+    sort_order: props.sortConfig?.order || undefined
+  }
+})
+
+// 注意：需要根据实际后端返回格式调整这里
+// 假设后端返回格式：{ data: [...], total: 14 } 或 { items: [...], total: 14 }
+const responseData = response.data
+if (responseData) {
+  // 字段映射：将后端字段映射到前端 TableItem 接口
+  buildings.value = (responseData.data || responseData.items || []).map((item: any) => ({
+    id: item.id || item.building_id,
+    buildingId: item.building_id || item.buildingId,
+    site: item.site || item.site_name || item.device,
+    energy: item.energy || item.total_energy || 0,
+    cop: item.cop || 0,
+    eui: item.eui || item.eui_index || 0,
+    carbon: item.carbon || item.carbon_emission || 0,
+    status: item.status || 'normal',
+    statusText: getStatusText(item.status || 'normal')
+  }))
+  pagination.value.total = responseData.total || responseData.total_count || 0
+}
+
+  } catch (error) {
+    console.error('获取建筑列表失败:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 组件挂载时自动获取数据
+onMounted(() => {
+  fetchBuildings()
+})
+
+// 监听筛选条件变化，变化时重置到第一页并重新获取
+watch(() => [props.filterForm?.status, props.advancedFilters, props.sortConfig], () => {
+  pagination.value.currentPage = 1
+  fetchBuildings()
+}, { deep: true, immediate: false })
+
+// 监听页码变化（已有 onPageChange 修改内部状态，这里确保页码变化时重新请求）
+watch(() => pagination.value.currentPage, () => {
+  fetchBuildings()
+})
 
 // 计算总页数
 const totalPages = computed(() => {
-  if (!props.pagination) return 1
-  return Math.ceil(props.pagination.total / props.pagination.pageSize)
+  return Math.ceil(pagination.value.total / pagination.value.pageSize)
 })
 
 // 计算显示范围
 const displayStart = computed(() => {
-  if (!props.pagination || props.pagination.total === 0) return 0
-  return (props.pagination.currentPage - 1) * props.pagination.pageSize + 1
+  if (pagination.value.total === 0) return 0
+  return (pagination.value.currentPage - 1) * pagination.value.pageSize + 1
 })
 
 const displayEnd = computed(() => {
-  if (!props.pagination) return 0
-  const end = props.pagination.currentPage * props.pagination.pageSize
-  return Math.min(end, props.pagination.total)
+  const end = pagination.value.currentPage * pagination.value.pageSize
+  return Math.min(end, pagination.value.total)
 })
 
 // 可见页码（最多显示5个）
 const visiblePages = computed(() => {
-  if (!props.pagination) return []
   const pages: number[] = []
   const maxVisible = 5
-  const current = props.pagination.currentPage
+  const current = pagination.value.currentPage
   const total = totalPages.value
   
   let start = Math.max(1, current - Math.floor(maxVisible / 2))
@@ -176,11 +267,12 @@ const visiblePages = computed(() => {
   return pages
 })
 
-// 页码切换事件
+// 页码切换事件（内部处理，不再emit）
 const onPageChange = (page: number) => {
   if (page < 1 || page > totalPages.value) return
-  emit('page-change', page)
+  pagination.value.currentPage = page  // 直接修改内部状态，watch会自动触发fetchBuildings
 }
+
 </script>
 
 <style scoped>
