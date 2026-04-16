@@ -13,10 +13,22 @@
           </div>
           <h2>查询筛选面板</h2>
           
-          <div class="alert-badge">
-            <span class="dot red"></span>
-            <span>系统运行状态：检测到2处紧急故障待处理</span>
+          <!-- 接口获取失败时显示错误状态 -->
+          <div v-if="isHighlightsError" class="alert-badge" style="background: #FEF3F2; border-color: #FECACA; color: #DC2626;">
+            <span class="dot" style="background: #DC2626;"></span>
+            <span>系统运行状态：数据获取失败</span>
           </div>
+          <!-- 有异常数据时显示异常状态 -->
+          <div v-else-if="highlights.abnormalBuildings > 0 || highlights.alertCount > 0" class="alert-badge">
+            <span class="dot red"></span>
+            <span>系统运行状态：检测到{{ highlights.abnormalBuildings }}处异常状态建筑，{{ highlights.alertCount }}个告警待处理</span>
+          </div>
+          <!-- 正常状态 -->
+          <div v-else class="alert-badge" style="background: #F0FDF4; border-color: #86EFAC; color: #16A34A;">
+            <span class="dot" style="background: #16A34A;"></span>
+            <span>系统运行状态：运行正常</span>
+          </div>
+
         </div>
       </div>
       
@@ -357,7 +369,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import axios from 'axios';
 import { useRouter } from 'vue-router';
 import FilterModal from './FilterModal.vue';
 import ExportModal from './ExportModal.vue'; // 引入 ExportModal 组件
@@ -365,6 +378,14 @@ import ExportModal from './ExportModal.vue'; // 引入 ExportModal 组件
 const router = useRouter();
 const showAdvanced = ref(false);
 const showExportModal = ref(false); // 控制 ExportModal 显示
+
+// 存储后端返回的高亮事项数据（异常建筑数、告警数等）
+const highlights = ref({
+  abnormalBuildings: 0,  // 异常建筑数量
+  alertCount: 0,         // 告警数量
+  warningCount: 0        // 高能耗预警数量
+})
+const isHighlightsError = ref(false)  // 标记接口是否获取失败
 
 // 导出相关状态
 const isExportMode = ref(false);
@@ -620,6 +641,30 @@ const clearAllAdvancedFilters = () => {
 const handleView = (item: BuildingItem) => router.push(`/building/${item.buildingId}`);
 const handleSuggest = (item: BuildingItem) => console.log('减排建议:', item.buildingId);
 const handleFault = (item: BuildingItem) => console.log('故障查询:', item.buildingId);
+
+// 调用后端接口获取高亮事项数据
+const fetchHighlights = async () => {
+  try {
+    isHighlightsError.value = false  // 重置错误状态
+    const response = await axios.get('/api/dashboard/highlights')
+    // 假设后端返回格式：{ abnormalBuildings: 2, alertCount: 5, warningCount: 1 }
+    if (response.data) {
+      highlights.value = {
+        abnormalBuildings: response.data.abnormalBuildings || 0,
+        alertCount: response.data.alertCount || 0,
+        warningCount: response.data.warningCount || 0
+      }
+    }
+  } catch (error) {
+    console.error('获取高亮事项失败:', error)
+    isHighlightsError.value = true  // 标记为错误状态
+  }
+}
+
+// 页面加载时自动获取高亮事项
+onMounted(() => {
+  fetchHighlights()
+})
 
 // AI 助手相关状态
 const isChatOpen = ref(false);
