@@ -49,7 +49,7 @@
                 <input type="text" placeholder="请输入文字" class="input-box" v-model="form.buildingId" />
               </div>
               <div class="form-item">
-                <label>设备：</label>
+                <label>站点：</label>
                 <input type="text" placeholder="请输入文字" class="input-box" v-model="form.site" />
               </div>
             </div>
@@ -60,42 +60,14 @@
               <span class="title-dot"></span>
               <span>物理属性</span>
             </div>
-            <div class="checkbox-row">
-              <label>建筑类型：</label>
-              <div class="checkbox-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="form.buildingType" value="education" />
-                  <span class="check-box"></span>
-                  <span>教育</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="form.buildingType" value="office" />
-                  <span class="check-box"></span>
-                  <span>办公</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="form.buildingType" value="dormitory" />
-                  <span class="check-box"></span>
-                  <span>住宿</span>
-                </label>
+            <div class="form-row">
+              <div class="form-item">
+                <label>建筑类型：</label>
+                <input type="text" placeholder="请选择" class="input-box" v-model="form.buildingType" />
               </div>
-              <label style="margin-left: 40px;">细分用途：</label>
-              <div class="checkbox-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="form.subUsage" value="research" />
-                  <span class="check-box"></span>
-                  <span>研究</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="form.subUsage" value="classroom" />
-                  <span class="check-box"></span>
-                  <span>教室</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="form.subUsage" value="dorm" />
-                  <span class="check-box"></span>
-                  <span>宿舍</span>
-                </label>
+              <div class="form-item">
+                <label>细分用途：</label>
+                <input type="text" placeholder="请选择" class="input-box" v-model="form.subUsage" />
               </div>
             </div>
             <div class="form-row">
@@ -107,9 +79,7 @@
                 <label>建造面积：</label>
                 <div class="input-with-unit">
                   <input type="text" placeholder="请输入面积数字" class="input-box" v-model="form.area" />
-                  <button class="unit-toggle" @click="toggleAreaUnit">
-                    {{ form.areaUnit === 'm2' ? 'm²' : 'ft²' }}
-                  </button>
+                  <span class="unit">m²</span>
                 </div>
               </div>
             </div>
@@ -130,31 +100,17 @@
               <span class="title-dot"></span>
               <span>能效基准</span>
             </div>
-            <div class="checkbox-row">
-              <label>LEED等级：</label>
-              <div class="checkbox-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="form.leedLevel" value="gold" />
-                  <span class="check-box"></span>
-                  <span>金奖</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="form.leedLevel" value="silver" />
-                  <span class="check-box"></span>
-                  <span>银奖</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" v-model="form.leedLevel" value="none" />
-                  <span class="check-box"></span>
-                  <span>无</span>
-                </label>
-              </div>
-            </div>
             <div class="form-row">
+              <div class="form-item">
+                <label>LEED等级：</label>
+                <input type="text" placeholder="请选择" class="input-box" v-model="form.leedLevel" />
+              </div>
               <div class="form-item">
                 <label>EnergyStar：</label>
                 <input type="text" placeholder="请输入评分数字" class="input-box" v-model="form.energyStar" />
               </div>
+            </div>
+            <div class="form-row">
               <div class="form-item">
                 <label>EUI：</label>
                 <input type="text" placeholder="请输入基准数值" class="input-box" v-model="form.euiMin" />
@@ -171,7 +127,6 @@
               <span class="title-dot"></span>
               <span>能效指标</span>
             </div>
-            
             <div class="energy-grid">
               <div class="energy-item">
                 <label>EUI 范围 (KWH/M²/年)</label>
@@ -181,7 +136,6 @@
                   <input type="text" placeholder="最大" v-model="form.euiRange.max" />
                 </div>
               </div>
-              
               <div class="energy-item">
                 <label>场地级EUI 范围 (KWH/M²/年)</label>
                 <div class="range-inputs">
@@ -190,7 +144,6 @@
                   <input type="text" placeholder="最大" v-model="form.siteEuiRange.max" />
                 </div>
               </div>
-              
               <div class="energy-item">
                 <label>源头级EUI 范围 (KWH/M²/年)</label>
                 <div class="range-inputs">
@@ -199,7 +152,6 @@
                   <input type="text" placeholder="最大" v-model="form.sourceEuiRange.max" />
                 </div>
               </div>
-
               <div class="energy-item">
                 <label>电力能耗范围 (KWH)</label>
                 <div class="range-inputs">
@@ -208,7 +160,6 @@
                   <input type="text" placeholder="最大" v-model="form.electricityRange.max" />
                 </div>
               </div>
-              
               <div class="energy-item">
                 <label>热水能耗范围 (KWH)</label>
                 <div class="range-inputs">
@@ -217,7 +168,6 @@
                   <input type="text" placeholder="最大" v-model="form.hotWaterRange.max" />
                 </div>
               </div>
-              
               <div class="energy-item">
                 <label>冷冻水能耗范围 (KWH)</label>
                 <div class="range-inputs">
@@ -226,7 +176,6 @@
                   <input type="text" placeholder="最大" v-model="form.chilledWaterRange.max" />
                 </div>
               </div>
-
               <div class="energy-item">
                 <label>蒸汽能耗范围 (KWH)</label>
                 <div class="range-inputs">
@@ -235,7 +184,6 @@
                   <input type="text" placeholder="最大" v-model="form.steamRange.max" />
                 </div>
               </div>
-              
               <div class="energy-item">
                 <label>用水量范围 (M³)</label>
                 <div class="range-inputs">
@@ -244,7 +192,6 @@
                   <input type="text" placeholder="最大" v-model="form.waterRange.max" />
                 </div>
               </div>
-              
               <div class="energy-item">
                 <label>灌溉能耗范围 (KWH)</label>
                 <div class="range-inputs">
@@ -253,7 +200,6 @@
                   <input type="text" placeholder="最大" v-model="form.irrigationRange.max" />
                 </div>
               </div>
-
               <div class="energy-item">
                 <label>太阳能发电量范围 (KWH)</label>
                 <div class="range-inputs">
@@ -262,7 +208,6 @@
                   <input type="text" placeholder="最大" v-model="form.solarRange.max" />
                 </div>
               </div>
-              
               <div class="energy-item">
                 <label>燃气能耗范围 (KWH)</label>
                 <div class="range-inputs">
@@ -271,7 +216,6 @@
                   <input type="text" placeholder="最大" v-model="form.gasRange.max" />
                 </div>
               </div>
-              
               <div class="energy-item">
                 <label>人均能耗范围 (KWH/人)</label>
                 <div class="range-inputs">
@@ -289,12 +233,14 @@
               <span class="title-dot"></span>
               <span>设备健康度</span>
             </div>
-            <div class="energy-item single">
-              <label>COP范围</label>
-              <div class="range-inputs">
-                <input type="text" placeholder="最小" v-model="form.copRange.min" />
-                <span class="separator">—</span>
-                <input type="text" placeholder="最大" v-model="form.copRange.max" />
+            <div class="energy-grid" style="grid-template-columns: repeat(3, 1fr);">
+              <div class="energy-item">
+                <label>COP范围</label>
+                <div class="range-inputs">
+                  <input type="text" placeholder="最小" v-model="form.copRange.min" />
+                  <span class="separator">—</span>
+                  <input type="text" placeholder="最大" v-model="form.copRange.max" />
+                </div>
               </div>
             </div>
           </div>
@@ -309,45 +255,37 @@
               <div class="carbon-item">
                 <label>建筑年度总碳排放量</label>
                 <div class="compare-input">
-                  <select v-model="form.carbonTotal.compare" class="compare-select">
-                    <option value=">">></option>
-                    <option value="<"><</option>
+                  <select class="compare-select" v-model="form.carbonTotal.compare">
+                    <option value=">">&gt;</option>
+                    <option value="<">&lt;</option>
                     <option value="=">=</option>
-                    <option value="<="><=</option>
-                    <option value=">=">>=</option>
                   </select>
                   <input type="text" placeholder="请输入" v-model="form.carbonTotal.value" />
-                  <span class="unit">kgCO₂e</span>
+                  <span class="unit">kgCå₂/m²</span>
                 </div>
               </div>
-              
               <div class="carbon-item">
                 <label>单位面积碳排放量</label>
                 <div class="compare-input">
-                  <select v-model="form.carbonPerArea.compare" class="compare-select">
-                    <option value=">">></option>
-                    <option value="<"><</option>
+                  <select class="compare-select" v-model="form.carbonPerArea.compare">
+                    <option value=">">&gt;</option>
+                    <option value="<">&lt;</option>
                     <option value="=">=</option>
-                    <option value="<="><=</option>
-                    <option value=">=">>=</option>
                   </select>
                   <input type="text" placeholder="请输入" v-model="form.carbonPerArea.value" />
-                  <span class="unit">kgCO₂e/m²</span>
+                  <span class="unit">kgCå₂/m²</span>
                 </div>
               </div>
-              
               <div class="carbon-item">
                 <label>人均碳排放量</label>
                 <div class="compare-input">
-                  <select v-model="form.carbonPerCapita.compare" class="compare-select">
-                    <option value=">">></option>
-                    <option value="<"><</option>
+                  <select class="compare-select" v-model="form.carbonPerCapita.compare">
+                    <option value=">">&gt;</option>
+                    <option value="<">&lt;</option>
                     <option value="=">=</option>
-                    <option value="<="><=</option>
-                    <option value=">=">>=</option>
                   </select>
                   <input type="text" placeholder="请输入" v-model="form.carbonPerCapita.value" />
-                  <span class="unit">kgCO₂e/人</span>
+                  <span class="unit">kgCå₂/m²</span>
                 </div>
               </div>
             </div>
@@ -357,12 +295,13 @@
 
       <!-- 底部 -->
       <div class="modal-footer">
-        <span class="status-text">配置筛选条件</span>
+        <span class="status-text">已配置筛选条件</span>
         <div class="footer-buttons">
           <button class="btn btn-default" @click="handleClose">取消</button>
           <button class="btn btn-primary" @click="handleSave">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-              <polyline points="20 6 9 17 4 12"></polyline>
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
             立即查询
           </button>
@@ -373,7 +312,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref } from 'vue'
 
 const props = defineProps<{
   visible: boolean
@@ -381,30 +320,29 @@ const props = defineProps<{
 
 const emit = defineEmits(['update:visible', 'save'])
 
-const activeTab = ref('property')
+// 默认显示能耗指标筛选
+const activeTab = ref('energy')
 
 const tabs = [
   { key: 'property', label: '建筑属性筛选' },
   { key: 'energy', label: '能耗指标筛选' }
 ]
 
-// 表单数据结构
 const form = reactive({
-  // 建筑属性
+  // 建筑属性 - 已改为字符串输入框
   buildingId: '',
   site: '',
-  buildingType: [] as string[],
-  subUsage: [] as string[],
+  buildingType: '',  // 改为字符串
+  subUsage: '',      // 改为字符串
   builtYear: '',
   area: '',
-  areaUnit: 'm2' as 'm2' | 'ft2', // 新增：面积单位
   floors: '',
   occupancy: '',
-  leedLevel: [] as string[],
+  leedLevel: '',     // 改为字符串
   energyStar: '',
   euiMin: '',
   
-  // 能耗指标（所有范围都是 min/max）
+  // 能耗指标
   euiRange: { min: '', max: '' },
   siteEuiRange: { min: '', max: '' },
   sourceEuiRange: { min: '', max: '' },
@@ -419,42 +357,10 @@ const form = reactive({
   perCapitaRange: { min: '', max: '' },
   copRange: { min: '', max: '' },
   
-  // 双碳指标（带比较运算符）
+  // 双碳指标
   carbonTotal: { compare: '>', value: '' },
   carbonPerArea: { compare: '>', value: '' },
   carbonPerCapita: { compare: '>', value: '' }
-})
-
-// 切换面积单位
-const toggleAreaUnit = () => {
-  form.areaUnit = form.areaUnit === 'm2' ? 'ft2' : 'm2'
-  // 可选：自动转换数值（保留一位小数）
-  if (form.area) {
-    const num = parseFloat(form.area)
-    if (!isNaN(num)) {
-      if (form.areaUnit === 'ft2') {
-        // m2 -> ft2 (1m2 = 10.764ft2)
-        form.area = (num * 10.764).toFixed(1)
-      } else {
-        // ft2 -> m2
-        form.area = (num / 10.764).toFixed(1)
-      }
-    }
-  }
-}
-
-// 关闭时重置（可选，根据业务需求决定是否保留）
-watch(() => props.visible, (newVal) => {
-  if (!newVal) {
-    // 如果需要在关闭时清空数据，取消下面注释
-    // Object.keys(form).forEach(key => {
-    //   if (Array.isArray(form[key])) form[key] = []
-    //   else if (typeof form[key] === 'object' && form[key] !== null) {
-    //     Object.keys(form[key]).forEach(k => form[key][k] = '')
-    //   }
-    //   else form[key] = ''
-    // })
-  }
 })
 
 const handleClose = () => {
@@ -462,14 +368,7 @@ const handleClose = () => {
 }
 
 const handleSave = () => {
-  // 提交时统一转换为标准单位（平方米）存储，方便后端处理
-  const submitData = { ...form }
-  if (submitData.area && submitData.areaUnit === 'ft2') {
-    // 转换为平方米（保留2位小数）
-    submitData.area = (parseFloat(submitData.area) / 10.764).toFixed(2)
-    submitData.areaUnit = 'm2'
-  }
-  emit('save', submitData)
+  emit('save', form)
   handleClose()
 }
 </script>
@@ -493,8 +392,8 @@ const handleSave = () => {
   background: white;
   border-radius: 12px;
   width: 100%;
-  max-width: 900px;
-  max-height: 85vh; /* 稍微降低高度，防止小屏幕被挤 */
+  max-width: 1000px;
+  max-height: 90vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -507,7 +406,6 @@ const handleSave = () => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  flex-shrink: 0;
 }
 
 .header-title {
@@ -564,7 +462,6 @@ h3 {
   padding: 0 24px;
   border-bottom: 1px solid #E5E7EB;
   background: #F9FAFB;
-  flex-shrink: 0;
 }
 
 .tab-btn {
@@ -605,6 +502,10 @@ h3 {
   margin-bottom: 24px;
 }
 
+.section:last-child {
+  margin-bottom: 0;
+}
+
 .section-title {
   display: flex;
   align-items: center;
@@ -641,6 +542,7 @@ h3 {
   font-size: 14px;
   color: #374151;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .input-box {
@@ -675,87 +577,19 @@ h3 {
 .input-with-unit .input-box {
   border: none;
   border-radius: 0;
-  flex: 1;
 }
 
-/* 新增：单位切换按钮样式 */
-.unit-toggle {
+.input-with-unit .unit {
   padding: 0 12px;
-  height: 36px;
-  border: none;
+  font-size: 14px;
+  color: #6B7280;
   background: #F3F4F6;
-  font-size: 14px;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 500;
-  min-width: 50px;
-}
-
-.unit-toggle:hover {
-  background: #E5E7EB;
-  color: #005BAC;
-}
-
-.checkbox-row {
+  height: 36px;
   display: flex;
   align-items: center;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-  gap: 12px;
 }
 
-.checkbox-row > label {
-  font-size: 14px;
-  color: #374151;
-  font-weight: 500;
-}
-
-.checkbox-group {
-  display: flex;
-  gap: 16px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #374151;
-}
-
-.checkbox-label input {
-  display: none;
-}
-
-.checkbox-label .check-box {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #D1D5DB;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.checkbox-label input:checked + .check-box {
-  background: #005BAC;
-  border-color: #005BAC;
-}
-
-.checkbox-label input:checked + .check-box::after {
-  content: '';
-  width: 5px;
-  height: 8px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-  margin-bottom: 2px;
-}
-
-/* 能耗指标样式 */
+/* 能耗指标样式 - 3列网格 */
 .energy-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -765,16 +599,12 @@ h3 {
 .energy-item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.energy-item.single {
-  max-width: 300px;
+  gap: 6px;
 }
 
 .energy-item label {
   font-size: 13px;
-  color: #6B7280;
+  color: #4B5563;
   font-weight: 500;
 }
 
@@ -794,19 +624,20 @@ h3 {
   color: #374151;
   outline: none;
   text-align: center;
-}
-
-.range-inputs input::placeholder {
-  color: #9CA3AF;
+  transition: border-color 0.2s;
 }
 
 .range-inputs input:focus {
   border-color: #005BAC;
 }
 
+.range-inputs input::placeholder {
+  color: #9CA3AF;
+}
+
 .separator {
   color: #9CA3AF;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 /* 双碳指标样式 */
@@ -819,12 +650,12 @@ h3 {
 .carbon-item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .carbon-item label {
   font-size: 13px;
-  color: #6B7280;
+  color: #4B5563;
   font-weight: 500;
 }
 
@@ -844,7 +675,7 @@ h3 {
   text-align: center;
   outline: none;
   background: white;
-  flex-shrink: 0;
+  cursor: pointer;
 }
 
 .compare-input input {
@@ -856,7 +687,11 @@ h3 {
   font-size: 14px;
   color: #374151;
   outline: none;
-  min-width: 0;
+  transition: border-color 0.2s;
+}
+
+.compare-input input:focus {
+  border-color: #005BAC;
 }
 
 .compare-input input::placeholder {
@@ -864,10 +699,9 @@ h3 {
 }
 
 .compare-input .unit {
-  font-size: 13px;
+  font-size: 12px;
   color: #6B7280;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 /* 底部样式 */
@@ -878,7 +712,6 @@ h3 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-shrink: 0;
 }
 
 .status-text {
@@ -921,5 +754,29 @@ h3 {
 
 .btn-primary:hover {
   background: #004a8d;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .energy-grid,
+  .carbon-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .form-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .energy-grid,
+  .carbon-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-item label {
+    width: 70px;
+  }
 }
 </style>
