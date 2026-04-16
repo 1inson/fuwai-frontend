@@ -142,6 +142,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
+import { getCurrentTimeString } from '../../utils/timeManager'
 
 const props = defineProps<{
   visible: boolean
@@ -159,10 +160,21 @@ const timeRanges = [
   { label: '本年', value: 'year' }
 ]
 
+const now = new Date(getCurrentTimeString())
 const form = reactive({
   timeRange: 'month',
-  startTime: { year: '2023', month: '10', day: '01', hour: '00' },
-  endTime: { year: '2023', month: '10', day: '31', hour: '23' },
+  startTime: {
+    year: now.getFullYear().toString(),
+    month: (now.getMonth() + 1).toString().padStart(2, '0'),
+    day: '01',
+    hour: '00'
+  },
+  endTime: {
+    year: now.getFullYear().toString(),
+    month: (now.getMonth() + 1).toString().padStart(2, '0'),
+    day: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate().toString().padStart(2, '0'),
+    hour: '23'
+  },
   timeFeatures: {
     workday: true,
     workdayPrice: 'peak',
@@ -175,7 +187,7 @@ const form = reactive({
 
 // 当快捷范围改变时，自动计算精确时间
 watch(() => form.timeRange, (newRange) => {
-  const now = new Date('2026-04-15T20:06:11') // 使用设置页面的当前时间
+  const now = new Date(getCurrentTimeString()) // 使用设置页面的当前时间
   let start = new Date(now)
   let end = new Date(now)
   
@@ -242,11 +254,17 @@ const handleClose = () => {
 
 // 修改：改为开始查询，自动关闭弹窗
 const handleQuery = () => {
+  const pad = (val: string | number) => String(val).padStart(2, '0')
+  
+  // 构建 ISO 8601 格式的时间字符串 (YYYY-MM-DDTHH:mm:ss)
+  const startTime = `${form.startTime.year}-${pad(form.startTime.month)}-${pad(form.startTime.day)}T${pad(form.startTime.hour)}:00:00`
+  const endTime = `${form.endTime.year}-${pad(form.endTime.month)}-${pad(form.endTime.day)}T${pad(form.endTime.hour)}:59:59`
+  
   // 构建时间范围对象
   const timeConfig = {
     range: form.timeRange,
-    startTime: `${form.startTime.year}-${form.startTime.month}-${form.startTime.day} ${form.startTime.hour}:00:00`,
-    endTime: `${form.endTime.year}-${form.endTime.month}-${form.endTime.day} ${form.endTime.hour}:59:59`,
+    startTime,
+    endTime,
     features: form.timeFeatures
   }
   
@@ -266,7 +284,7 @@ const handleQuery = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
   padding: 20px;
 }
 

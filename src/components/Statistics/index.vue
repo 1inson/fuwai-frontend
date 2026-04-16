@@ -122,7 +122,7 @@
         </template>
         <template v-else-if="copSummary">
           <div class="kpi-value-row">
-            <span class="kpi-value">{{ copSummary.avg_cop.toFixed(2) }}</span>
+            <span class="kpi-value">{{ copSummary.avg_cop != null ? Number(copSummary.avg_cop).toFixed(2) : '—' }}</span>
             <span class="cop-rating-dot" :class="copRatingClass"></span>
           </div>
           <div class="kpi-extra cop-rating">
@@ -140,8 +140,8 @@
     <!-- 能耗趋势图 -->
     <EnergyTrendChart :start-time="activeStart" :end-time="activeEnd" />
 
-    <!-- 分设备与分建筑效绩表 -->
-    <SitePerformanceTable :start-time="activeStart" :end-time="activeEnd" />
+    <!-- 设备监测与分建筑效绩表 -->
+    <MeterPerformanceTable :start-time="activeStart" :end-time="activeEnd" />
     <BuildingPerformanceTable :start-time="activeStart" :end-time="activeEnd" />
 
     <!-- 错误提示 -->
@@ -158,7 +158,7 @@ import { ref, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import EnergyTrendChart from './EnergyTrendChart.vue'
-import SitePerformanceTable from './SitePerformanceTable.vue'
+import MeterPerformanceTable from './MeterPerformanceTable.vue'
 import BuildingPerformanceTable from './BuildingPerformanceTable.vue'
 import {
   getEnergyQuery,

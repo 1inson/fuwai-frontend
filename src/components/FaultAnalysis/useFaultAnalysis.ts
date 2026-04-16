@@ -1,24 +1,34 @@
 import { ref, reactive, computed, onUnmounted } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
+import { useAnomalyTaskStore } from '../../store/anomalyTask'
 import {
   triggerDetection,
   getDashboardOverview,
   getAnomalyAnalysis,
   aiAnalyzeAnomaly,
   submitAnomalyFeedback,
-  connectAnomalyProgress,
   type AnomalySummary,
   type DashboardOverviewResponse,
   type EnergyAnomalyAnalysisResponse,
   type AIAnalyzeAnomalyResponse,
   type AnomalyFeedbackResponse,
-  type AnomalyProgressEvent,
   type AICandidateCause
 } from '../../api/anomaly'
 
 export type ChartRange = 'day' | 'week' | 'month'
 
 export function useFaultAnalysis() {
+  const { 
+    detecting, 
+    detectProgress, 
+    detectLogs, 
+    detectError, 
+    initAnomalyTaskMonitor,
+    setDetectingStatus,
+    setDetectError,
+    clearDetectLogs
+  } = useAnomalyTaskStore()
+
   // ─── 时间范围选择 ──────────────────────────────────
   const chartRange = ref<ChartRange>('week')
 
@@ -71,43 +81,21 @@ export function useFaultAnalysis() {
   }
 
   // ─── 检测触发 & SSE 进度 ───────────────────────────
-  const detecting = ref(false)
-  const detectProgress = ref('')
-  const detectLogs = reactive<string[]>([])
-  const detectError = ref('')
-  let sseSource: EventSource | null = null
-
   const startDetection = async () => {
     if (detecting.value) return
-    detecting.value = true
-    detectProgress.value = ''
-    detectLogs.length = 0
-    detectError.value = ''
+    
+    setDetectingStatus(true)
+    clearDetectLogs()
 
     try {
       await triggerDetection()
-
-      // SSE 监听进度
-      sseSource = connectAnomalyProgress(
-        (event: AnomalyProgressEvent) => {
-          detectProgress.value = event.message
-          detectLogs.push(event.message)
-          // 保持日志不超过 200 条
-          if (detectLogs.length > 200) detectLogs.splice(0, detectLogs.length - 200)
-        },
-        (err) => {
-          console.warn('SSE 连接异常:', err)
-        },
-        () => {
-          // 完成后自动刷新数据
-          detecting.value = false
-          detectProgress.value = '分析完成'
-          fetchOverview()
-        }
-      )
+      // SSE 监听进度已经在 Store 中统一处理
+      initAnomalyTaskMonitor(() => {
+        // 完成后的回调
+        fetchOverview()
+      })
     } catch (err: any) {
-      detecting.value = false
-      detectError.value = err?.response?.data?.detail || err?.message || '触发失败'
+      setDetectError(err?.response?.data?.detail || err?.message || '触发失败')
       console.error('触发异常检测失败:', err)
     }
   }
@@ -228,6 +216,23 @@ export function useFaultAnalysis() {
         analysis_mode: aiResult.value.meta?.analysis_mode
       }) as any
       feedbackResult.value = res
+
+      // 核心修复：反馈成功后同步更新列表状态，实现全站联动
+      if (overview.value?.top_anomalies && selectedAnomaly.value) {
+        const target = overview.value.top_anomalies.find(
+          a => a.anomaly_id === selectedAnomaly.value!.anomaly_id
+        )
+        if (target) {
+          // 强制修改响应式对象中的状态
+          target.resolution_status = 'confirmed'
+        }
+        // 同时也更新当前选中对象的副本状态
+        selectedAnomaly.value.resolution_status = 'confirmed'
+      }
+      
+      // 清空评论
+      feedbackComment.value = ''
+      
     } catch (err: any) {
       console.error('提交反馈失败:', err)
       feedbackError.value = err?.response?.data?.detail || err?.message || '提交失败'

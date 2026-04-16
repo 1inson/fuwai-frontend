@@ -22,6 +22,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { getCurrentTimeString } from '../utils/timeManager'
 import { getDashboardOverview, type MetricCard, type AnomalySummary, type DashboardOverviewResponse } from '../api/dashboard'
 
 import KpiCards from './dashboard/KpiCards.vue'
@@ -44,10 +45,19 @@ const openReportModal = () => {
 
 const unwrap = (res: any) => res?.data ?? res
 
+/** 首页固定展示近 7 天的异常建筑（与故障分析"近1周"语义对齐） */
+const HOMEPAGE_RANGE_MS = 7 * 24 * 60 * 60 * 1000
+
 const fetchOverview = async () => {
   overviewLoading.value = true
   try {
-    const raw = await getDashboardOverview()
+    const now = new Date(getCurrentTimeString())
+    const start = new Date(now.getTime() - HOMEPAGE_RANGE_MS)
+    const raw = await getDashboardOverview({
+      start_time: start.toISOString(),
+      end_time: now.toISOString(),
+      chart_range: 'week'
+    })
     const data = unwrap(raw) as DashboardOverviewResponse
     metrics.value = data?.metrics ?? []
     topAnomalies.value = data?.top_anomalies ?? []

@@ -44,7 +44,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
+import { getCurrentTimeString } from '../../utils/timeManager'
 
 const props = defineProps<{
   visible: boolean
@@ -54,9 +55,82 @@ const emit = defineEmits(['update:visible', 'export'])
 
 const selectedFormat = ref('md')
 
-const selectFormat = (format: string) => {
-  selectedFormat.value = format
-}
+const form = reactive({
+  timeRange: 'month',
+  startTime: { year: '2023', month: '10', day: '01', hour: '00' },
+  endTime: { year: '2023', month: '10', day: '31', hour: '23' },
+  timeFeatures: {
+    workday: true,
+    workdayPrice: 'peak',
+    weekend: false,
+    weekendPrice: 'valley',
+    holiday: false,
+    holidayPrice: 'valley'
+  }
+})
+
+// 当快捷范围改变时，自动计算精确时间
+watch(() => form.timeRange, (newRange) => {
+  const now = new Date(getCurrentTimeString()) // 使用设置页面的当前时间
+  let start = new Date(now)
+  let end = new Date(now)
+  
+  switch(newRange) {
+    case 'today':
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'yesterday':
+      start.setDate(start.getDate() - 1)
+      start.setHours(0, 0, 0, 0)
+      end.setDate(end.getDate() - 1)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'lastWeek':
+      start.setDate(start.getDate() - 7)
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'month':
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'lastMonth':
+      start.setMonth(start.getMonth() - 1)
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+      end.setDate(0) // 上个月的最后一天
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'quarter':
+      const quarter = Math.floor(start.getMonth() / 3)
+      start.setMonth(quarter * 3)
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+    case 'year':
+      start.setMonth(0)
+      start.setDate(1)
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      break
+  }
+  
+  form.startTime = {
+    year: start.getFullYear().toString(),
+    month: (start.getMonth() + 1).toString().padStart(2, '0'),
+    day: start.getDate().toString().padStart(2, '0'),
+    hour: start.getHours().toString().padStart(2, '0')
+  }
+  form.endTime = {
+    year: end.getFullYear().toString(),
+    month: (end.getMonth() + 1).toString().padStart(2, '0'),
+    day: end.getDate().toString().padStart(2, '0'),
+    hour: end.getHours().toString().padStart(2, '0')
+  }
+}, { immediate: true })
 
 const handleClose = () => {
   emit('update:visible', false)
