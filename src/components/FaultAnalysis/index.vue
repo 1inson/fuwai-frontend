@@ -149,11 +149,16 @@ const {
   feedbackComment,
   selectCause,
   submitFeedback,
-  severityStats
+  severityStats,
+  initAnomalyTaskMonitor // 新增
 } = useFaultAnalysis()
 
 onMounted(() => {
   fetchOverview()
+  // 核心：加载页面时，主动连接 SSE 嗅探是否存在正在进行的任务
+  initAnomalyTaskMonitor(() => {
+    fetchOverview()
+  })
 })
 </script>
 

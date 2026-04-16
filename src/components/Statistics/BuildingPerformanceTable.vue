@@ -89,6 +89,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue'
+import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
 import { getBuildings, getMeters, getEnergyQuery } from '../../api/statistics'
 import BuildingDetailsModal from './BuildingDetailsModal.vue'
@@ -204,7 +205,7 @@ const fetchData = async () => {
     
     tableData.value = await Promise.all(promises)
     
-    const d = new Date()
+    const d = new Date(getCurrentTimeString())
     lastUpdated.value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
   } catch (err) {
     console.error('建筑效绩表聚合失败:', err)

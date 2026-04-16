@@ -126,8 +126,9 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
-import { getBuildingById, BuildingDetailResponse, getBuildingEnergySummary } from '../../api/statistics'
+import { getBuildingById, type BuildingDetailResponse, getBuildingEnergySummary } from '../../api/statistics'
 
 const props = defineProps<{
   visible: boolean
@@ -156,7 +157,7 @@ watch(() => props.startTime, (v) => {
       return
     }
   }
-  const now = new Date()
+  const now = new Date(getCurrentTimeString())
   selectedDay.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }, { immediate: true })
 

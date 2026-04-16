@@ -142,6 +142,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
+import { getCurrentTimeString } from '../../utils/timeManager'
 
 const props = defineProps<{
   visible: boolean
@@ -175,7 +176,7 @@ const form = reactive({
 
 // 当快捷范围改变时，自动计算精确时间
 watch(() => form.timeRange, (newRange) => {
-  const now = new Date('2026-04-15T20:06:11') // 使用设置页面的当前时间
+  const now = new Date(getCurrentTimeString()) // 使用设置页面的当前时间
   let start = new Date(now)
   let end = new Date(now)
   

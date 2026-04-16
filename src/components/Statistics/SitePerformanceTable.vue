@@ -73,6 +73,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
 import { getBuildings, getEnergyQuery } from '../../api/statistics'
 
@@ -186,7 +187,7 @@ const fetchData = async () => {
     
     tableData.value = rows
     
-    const d = new Date()
+    const d = new Date(getCurrentTimeString())
     lastUpdated.value = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
   } catch (err) {
     console.error('站点效绩聚合失败:', err)
