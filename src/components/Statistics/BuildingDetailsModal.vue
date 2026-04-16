@@ -86,11 +86,17 @@
         <button class="btn btn-primary" @click="exportData">
           一键统计分析 
         </button>
-        <button class="btn btn-primary btn-icon">
-          导出数据 <Icon icon="lucide:external-link" class="ml-1" />
+        <button class="btn btn-primary btn-icon" @click="showExportModal = true" :disabled="exporting">
+          <Icon v-if="exporting" icon="lucide:loader-2" class="spin mr-1" />
+          <span v-if="exporting">正在导出...</span>
+          <template v-else>
+            导出数据 <Icon icon="lucide:external-link" class="ml-1" />
+          </template>
         </button>
       </div>
     </div>
+    
+    <ExportModal v-model:visible="showExportModal" @export="executeExportTasks" />
   </div>
 </template>
 
@@ -98,7 +104,16 @@
 import { ref, watch, computed } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
-import { getBuildingById, type BuildingDetailResponse, getBuildingEnergySummary } from '../../api/statistics'
+import ExportModal from '../QueryView/ExportModal.vue'
+import { 
+  getBuildingById, 
+  type BuildingDetailResponse, 
+  getBuildingEnergySummary,
+  generateReport,
+  getReportStatus,
+  downloadReport,
+  deleteReport
+} from '../../api/statistics'
 
 const props = defineProps<{
   visible: boolean
@@ -114,6 +129,9 @@ const detailData = ref<BuildingDetailResponse | null>(null)
 const anomalyCount = ref(0)
 const hourlyData = ref<{ hour: string; total: number; peak: number; average: number }[]>([])
 const hourlyLoading = ref(false)
+
+const showExportModal = ref(false)
+const exporting = ref(false)
 
 const selectedDay = ref('')
 
@@ -136,7 +154,58 @@ const close = () => {
 }
 
 const exportData = () => {
-  alert('导出功能开发中...')
+  alert('功能开发中: 一键统计分析')
+}
+
+const executeExportTasks = async (payload: { format: string }) => {
+  if (!props.buildingId) return
+  exporting.value = true
+  
+  try {
+    const timeStart = `${selectedDay.value}T00:00:00Z`
+    const timeEnd = `${selectedDay.value}T23:59:59Z`
+    
+    // 1. 发起任务
+    const reqData = await generateReport({
+      report_type: 'daily_summary',
+      building_id: props.buildingId,
+      time_range: { start: timeStart, end: timeEnd },
+      include_ai_summary: true
+    })
+    const reportId = reqData.report_id
+    
+    // 2. 轮询状态
+    let isReady = false
+    while (!isReady) {
+      await new Promise(res => setTimeout(res, 2000))
+      const statData = await getReportStatus(reportId)
+      if (statData.status === 'ready') {
+        isReady = true
+      } else if (statData.status === 'failed') {
+        throw new Error('报表生成失败')
+      }
+    }
+    
+    // 3. 取文件流并下载
+    const blob = await downloadReport(reportId, payload.format || 'md')
+    const downloadUrl = window.URL.createObjectURL(new Blob([blob as any]))
+    const link = document.createElement('a')
+    link.href = downloadUrl
+    link.setAttribute('download', `building_${props.buildingId}_report_${selectedDay.value}.${payload.format || 'md'}`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(downloadUrl)
+    
+    // 4. 清理暂存报表
+    await deleteReport(reportId)
+    
+  } catch (err: any) {
+    alert('导出异常: ' + (err.message || '未知错误'))
+    console.error(err)
+  } finally {
+    exporting.value = false
+  }
 }
 
 const viewDetailAction = (item: any) => {

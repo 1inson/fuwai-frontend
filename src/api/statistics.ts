@@ -267,3 +267,54 @@ export const getBuildingEnergySummary = (buildingId: string, params?: BuildingEn
         timeout: 15000
     })
 }
+
+// ─── Types: Reports Integration ───────────────────────────────────
+
+export interface GenerateReportRequest {
+    report_type: 'daily_summary' | 'weekly_summary' | 'monthly_summary' | 'anomaly_report'
+    building_id?: string
+    time_range: TimeRange
+    include_ai_summary?: boolean
+}
+
+export interface GenerateReportResponse {
+    report_id: string
+    status: 'queued' | 'processing' | 'ready' | 'failed'
+}
+
+export interface ReportStatusResponse {
+    report_id: string
+    status: 'queued' | 'processing' | 'ready' | 'failed'
+    [key: string]: any
+}
+
+/** 1. 创建报表生成任务 */
+export const generateReport = (data: GenerateReportRequest) => {
+    return request.post<GenerateReportResponse>('/reports/generate', data, {
+        timeout: 10000
+    })
+}
+
+/** 2. 获取报表处理状态 (不下载文件流) */
+export const getReportStatus = (reportId: string) => {
+    return request.get<ReportStatusResponse>(`/reports/${reportId}`, {
+        params: { download: false },
+        timeout: 10000
+    })
+}
+
+/** 3. 当准备就绪后，直接获取文件流进行下载 */
+export const downloadReport = (reportId: string, format: string = 'md') => {
+    return request.get(`/reports/${reportId}`, {
+        params: { download: true, format },
+        responseType: 'blob', // 关键点：将响应体作为 Blob 读取，以便用于前端下载
+        timeout: 30000
+    })
+}
+
+/** 4. 删除暂存的报表 */
+export const deleteReport = (reportId: string) => {
+    return request.delete(`/reports/${reportId}`, {
+        timeout: 10000
+    })
+}
