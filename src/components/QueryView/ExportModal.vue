@@ -3,7 +3,7 @@
     <div class="modal-content">
       <!-- 头部 - 白色背景 -->
       <div class="modal-header">
-        <h3 class="modal-title">导出报表</h3>
+        <h3>导出</h3>
         <button class="close-btn" @click="handleClose">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -14,23 +14,22 @@
       
       <!-- 内容区域 -->
       <div class="modal-body">
-        <div class="format-card" @click="selectFormat('md')">
-          <!-- 导出/下载图标（无圆圈） -->
-          <div class="format-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
+        <div class="format-option">
+          <div class="download-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="16"></line>
+              <polyline points="8 12 12 16 16 12"></polyline>
             </svg>
           </div>
-          <span class="format-name">Markdown (.md)</span>
+          <span class="format-text">Markdown (.md)</span>
         </div>
       </div>
-      
+
       <!-- 底部 -->
       <div class="modal-footer">
-        <button class="btn btn-default" @click="handleClose">取消</button>
-        <button class="btn btn-primary" @click="handleExport">
+        <button class="btn btn-cancel" @click="handleClose">取消</button>
+        <button class="btn btn-export" @click="handleExport">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
@@ -137,7 +136,7 @@ const handleClose = () => {
 }
 
 const handleExport = () => {
-  emit('export', { format: selectedFormat.value })
+  emit('export', { format: 'md' })
   handleClose()
 }
 </script>
@@ -149,7 +148,7 @@ const handleExport = () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -161,27 +160,38 @@ const handleExport = () => {
   background: white;
   border-radius: 8px;
   width: 100%;
-  max-width: 480px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 520px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: modalShow 0.3s ease;
+}
+
+@keyframes modalShow {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* 头部样式 - 白色背景 */
 .modal-header {
-  padding: 20px 24px;
+  padding: 24px 24px 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: white;
-  border-bottom: 1px solid #F0F0F0;
 }
 
-.modal-title {
+.modal-header h3 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: #002B54;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 .close-btn {
@@ -199,60 +209,54 @@ const handleExport = () => {
 }
 
 .close-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: #F3F4F6;
+  color: #6B7280;
 }
 
 /* 内容区域 */
 .modal-body {
-  padding: 24px;
-  background: white;
+  padding: 20px 24px 32px;
 }
 
-/* 格式卡片 - 浅蓝色背景 */
-.format-card {
+.format-option {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px;
-  background: #F0F7FF; /* 浅蓝色背景 */
+  gap: 12px;
+  padding: 16px 20px;
+  background: #EFF6FF;
   border-radius: 8px;
-  border: 1px solid transparent;
-  cursor: pointer;
+  border: 1px solid #BFDBFE;
   transition: all 0.2s;
+  cursor: pointer;
 }
 
-.format-card:hover {
-  border-color: #005BAC;
-  box-shadow: 0 2px 8px rgba(0, 91, 172, 0.1);
+.format-option:hover {
+  background: #DBEAFE;
+  border-color: #93C5FD;
 }
 
-/* 导出图标 - 无圆圈 */
-.format-icon {
-  width: 24px;
-  height: 24px;
+.download-icon {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #4A5568;
+  color: #005BAC;
   flex-shrink: 0;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.format-icon svg {
-  width: 22px;
-  height: 22px;
-}
-
-.format-name {
-  font-size: 16px;
-  color: #2D3748;
+.format-text {
+  font-size: 15px;
+  color: #1F2937;
   font-weight: 500;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* 底部样式 */
 .modal-footer {
-  padding: 16px 24px;
-  background: #F7F7F7; /* 浅灰色背景 */
+  padding: 16px 24px 24px;
   display: flex;
   justify-content: flex-end;
   align-items: center;
@@ -260,46 +264,66 @@ const handleExport = () => {
   border-top: 1px solid #EEEEEE;
 }
 
+/* 按钮基础样式 - 圆角阴影 */
 .btn {
   height: 40px;
   padding: 0 24px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
-  border: 1px solid transparent;
-  transition: all 0.2s;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  justify-content: center;
+  transition: all 0.2s ease;
+  border: none;
+  outline: none;
+  position: relative;
+  overflow: hidden;
 }
 
-.btn-default {
+/* 取消按钮样式 */
+.btn-cancel {
   background: white;
-  color: #374151;
-  border-color: #D1D5DB;
+  color: #4B5563;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.btn-default:hover {
+.btn-cancel:hover {
   background: #F9FAFB;
-  border-color: #9CA3AF;
-}
-
-.btn-primary {
-  background: #005BAC;
-  color: white;
-  border-color: #005BAC;
-  box-shadow: 0 2px 4px rgba(0, 91, 172, 0.2);
-}
-
-.btn-primary:hover {
-  background: #004a8d;
-  border-color: #004a8d;
+  border-color: #D1D5DB;
+  color: #374151;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 91, 172, 0.3);
 }
 
-.btn-primary:active {
+.btn-cancel:active {
   transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* 开始导出按钮样式 - 深蓝渐变 */
+.btn-export {
+  background: linear-gradient(135deg, #005BAC 0%, #004a8d 100%);
+  color: white;
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 91, 172, 0.3),
+    0 2px 4px -1px rgba(0, 91, 172, 0.2);
+}
+
+.btn-export:hover {
+  background: linear-gradient(135deg, #004a8d 0%, #003d75 100%);
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 91, 172, 0.4),
+    0 4px 6px -2px rgba(0, 91, 172, 0.3);
+  transform: translateY(-2px);
+}
+
+.btn-export:active {
+  transform: translateY(0);
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 91, 172, 0.3),
+    0 2px 4px -1px rgba(0, 91, 172, 0.2);
 }
 </style>
