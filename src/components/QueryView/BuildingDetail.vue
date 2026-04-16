@@ -25,8 +25,30 @@
       </div>
     </div>
 
-    <div class="content-grid">
+    <!-- 加载状态 -->
+    <div v-if="loading" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>正在加载建筑数据...</p>
+    </div>
+
+    <!-- 错误状态 -->
+    <div v-else-if="error" class="error-container">
+      <div class="error-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+      </div>
+      <h3>{{ errorTitle }}</h3>
+      <p>{{ errorMessage }}</p>
+      <button class="btn-retry" @click="fetchBuildingDetail">重新加载</button>
+    </div>
+
+    <!-- 数据内容（添加 v-else 条件） -->
+    <div v-else class="content-grid">
       <!-- 左侧信息面板 -->
+
       <div class="left-panel">
         <!-- 标签页切换 -->
         <div class="tab-header">
@@ -560,6 +582,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import axios from 'axios'; // 新增：引入axios
 import { getCurrentTimeString } from '@/utils/timeManager';
 // 新增：导入弹窗组件
 import TimeFilterModal from './TimeFilterModal.vue';
@@ -607,77 +630,30 @@ const statusClass = computed(() => status.value);
 const showEnergyModal = ref(false);
 const showEnvModal = ref(false);
 
-// 建筑元数据
-const buildingInfo = ref({
-  buildingId: 'BLDG-HQ-A01-SH',
-  siteId: 'East-China-04 / site_4',
-  primaryUse: '办公/商业',
-  area: '124,500',
-  areaFt: '1,340,107',
-  subUse: '建筑',
-  buildYear: '2018',
-  floors: '42',
-  timezone: 'UTC+8 (北京)',
-  startDate: '2018-06-28',
-  occupancy: '8,500',
-  coordinates: '31.23° N, 121.47° E'
-});
+// 建筑元数据（接口获取）
+const buildingInfo = ref<any>({});
+// 建筑衍生数据（接口获取）
+const derivedData = ref<any>({});
 
-// 建筑衍生数据
-const derivedData = ref({
-  cop: '111',
-  annualCarbon: '1,245.50',
-  carbonPerArea: '12.4',
-  carbonPerPerson: '0.85',
-  carbonReduction: '111',
-  carbonReductionRate: '12.5%',
-  renewableRate: '24%',
-  euiBaseline: '111',
-  euiSource: '111',
-  euiSite: '111',
-  waterPerArea: '111',
-  energyPerPerson: '11',
-  energyType: '电力(Electricity)',
-  totalEnergy: '111',
-  energyRatio: '11%',
-  totalEnergyAll: '3510.12'
-});
+// 运行关键指标（接口获取）
+const metrics = ref<any>({});
 
-// 运行关键指标
-const metrics = ref({
-  abnormalRate: '0.42',
-  euiRate: '104.2'
-});
+// 小时级监控数据（接口获取）
+const allMonitorData = ref<any[]>([]);
 
-// 模拟数据（142条）- 基于2024年5月12日的数据
-const allMonitorData = ref([
-  { time: '2024-05-12 08:00' }, { time: '2024-05-12 09:00' },
-  { time: '2024-05-12 10:00' }, { time: '2024-05-12 11:00' },
-  { time: '2024-05-12 12:00' }, { time: '2024-05-12 13:00' },
-  { time: '2024-05-12 14:00' }, { time: '2024-05-12 15:00' },
-  { time: '2024-05-12 16:00' }, { time: '2024-05-12 17:00' },
-  { time: '2024-05-12 18:00' }, { time: '2024-05-12 19:00' },
-]);
+// 新增：loading和error状态
+const loading = ref(true);
+const error = ref(false);
+const errorTitle = ref('加载失败');
+const errorMessage = ref('无法获取建筑详情数据');
 
-// 生成142条模拟数据（基于当前系统时间2026-04-15生成一些模拟历史数据）
-const generateMockData = () => {
-  const data = [];
-  const current = new Date(currentSystemTime.value);
-  
-  // 生成最近30天的数据，每小时一条
-  for (let i = 0; i < 142; i++) {
-    const date = new Date(current);
-    date.setHours(date.getHours() - i);
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const hour = date.getHours().toString().padStart(2, '0');
-    data.unshift({ time: `${year}-${month}-${day} ${hour}:00` });
-  }
-  return data;
-};
+// 删除：模拟数据生成代码（已移除）
 
-allMonitorData.value = generateMockData();
+
+// 删除：模拟数据生成函数（数据改为从接口获取）
+// const generateMockData = () => { ... };
+// allMonitorData.value = generateMockData();
+
 
 // 新增：根据时间筛选过滤后的数据
 const filteredData = computed(() => {
@@ -783,6 +759,71 @@ const handleExport = (exportConfig: { format: string }) => {
   // 这里实现实际的导出逻辑
 };
 
+// 新增：获取建筑详情数据
+const fetchBuildingDetail = async () => {
+  loading.value = true;
+  error.value = false;
+  
+  try {
+    // 接口路径：/api/buildings/{buildingId}
+    // 代理后会转发到 http://127.0.0.1:4523/m1/8021021-7775608-default/buildings/{id}
+    const response = await axios.get(`/api/buildings/${buildingId.value}`);
+    
+    // 假设接口返回数据结构：
+    // {
+    //   basicInfo: { buildingId, siteId, primaryUse, area, ... },
+    //   derivedData: { cop, annualCarbon, ... },
+    //   metrics: { abnormalRate, euiRate },
+    //   monitorData: [{ time: '...' }, ...],
+    //   status: 'normal' | 'warning' | 'error'
+    // }
+    
+    // 赋值给各个响应式对象
+    buildingInfo.value = response.data.basicInfo || {};
+    derivedData.value = response.data.derivedData || {};
+    metrics.value = response.data.metrics || {};
+    
+    // 更新建筑状态（如果接口返回了状态）
+    if (response.data.status) {
+      status.value = response.data.status;
+    }
+    
+    // 更新监控数据
+    if (response.data.monitorData && response.data.monitorData.length > 0) {
+      allMonitorData.value = response.data.monitorData;
+    } else {
+      // 如果接口暂无监控数据，保持空数组
+      allMonitorData.value = [];
+    }
+    
+    // 更新分页相关计算
+    pagination.value.total = allMonitorData.value.length;
+    updatePaginationRange();
+    
+  } catch (err: any) {
+    console.error('获取建筑详情失败:', err);
+    error.value = true;
+    
+    // 根据错误类型显示不同提示
+    if (err.response) {
+      if (err.response.status === 404) {
+        errorTitle.value = '建筑不存在';
+        errorMessage.value = `未找到ID为 ${buildingId.value} 的建筑信息`;
+      } else {
+        errorTitle.value = `服务器错误 (${err.response.status})`;
+        errorMessage.value = '后端服务异常，请稍后再试';
+      }
+    } else if (err.request) {
+      errorTitle.value = '网络连接失败';
+      errorMessage.value = '无法连接到后端服务，请检查代理配置';
+    } else {
+      errorMessage.value = err.message || '未知错误';
+    }
+  } finally {
+    loading.value = false;
+  }
+};
+
 // 弹窗方法
 const handleViewEnergy = (item: any) => {
   console.log('查看能耗数据:', item.time);
@@ -834,7 +875,7 @@ const handleNextPage = () => {
 
 // 初始化
 onMounted(() => {
-  updatePaginationRange();
+  fetchBuildingDetail(); // 新增：获取建筑详情
 });
 </script>
 
@@ -1598,4 +1639,79 @@ onMounted(() => {
   display: grid;
   gap: 16px;
 }
+
+/* 加载状态样式 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  margin-top: 24px;
+  color: #666;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #E5E7EB;
+  border-top-color: #0056b3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 错误状态样式 */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  margin-top: 24px;
+  text-align: center;
+}
+
+.error-icon {
+  color: #DC2626;
+  margin-bottom: 16px;
+}
+
+.error-container h3 {
+  font-size: 18px;
+  color: #1F2937;
+  margin: 0 0 8px 0;
+}
+
+.error-container p {
+  color: #6B7280;
+  margin-bottom: 24px;
+}
+
+.btn-retry {
+  padding: 10px 24px;
+  background: #0056b3;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.btn-retry:hover {
+  background: #004494;
+}
 </style>
+
