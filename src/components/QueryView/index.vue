@@ -320,7 +320,7 @@ const handleFault = (item: BuildingItem) => {
 
 <style scoped>
 .query-page {
-  min-height: 100vh;
+  min-height: 100%;
   background: #F5F7FA;
   padding: 24px;
   overflow-y: auto;

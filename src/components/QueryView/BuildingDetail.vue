@@ -560,6 +560,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { getCurrentTimeString } from '@/utils/timeManager';
 // 新增：导入弹窗组件
 import TimeFilterModal from './TimeFilterModal.vue';
 import ExportModal from './ExportModal.vue';
@@ -573,8 +574,8 @@ const buildingId = computed(() => route.params.id as string || 'BLDG-HQ-A01');
 const showTimeFilter = ref(false);
 const showExportModal = ref(false);
 
-// 新增：当前系统时间（从设置页面获取，这里使用图二显示的时间：2026年4月15日 20:06:11）
-const currentSystemTime = ref('2026-04-15T20:06:11');
+// 新增：当前系统时间（从设置页面获取）
+const currentSystemTime = ref(getCurrentTimeString());
 
 // 新增：时间筛选配置
 const timeFilterConfig = ref({
@@ -839,7 +840,7 @@ onMounted(() => {
 
 <style scoped>
 .building-detail {
-  min-height: 100vh;
+  min-height: 100%;
   background: #f5f7fa;
   padding: 24px;
 }

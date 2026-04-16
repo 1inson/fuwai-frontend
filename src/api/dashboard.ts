@@ -74,6 +74,7 @@ export const getDashboardOverview = (params?: {
   end_time?: string
   site_id?: string
   building_id?: string
+  chart_range?: 'day' | 'week' | 'month'
 }) => {
   return request.get<DashboardOverviewResponse>('/dashboard/overview', {
     params: { ...params },
