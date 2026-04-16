@@ -78,13 +78,131 @@
             </table>
           </div>
         </div>
+
+        <!-- AI 运维分析结果 -->
+        <div class="ops-guide-panel" v-if="opsLoading || opsError || opsResult">
+          <div class="card-section">
+            <div class="section-top">
+              <h3>
+                <Icon icon="lucide:bot" class="mr-1" />
+                AI 运维指导
+              </h3>
+              <button v-if="opsResult" class="close-ops-btn" @click="opsResult = null">
+                <Icon icon="lucide:x" />
+              </button>
+            </div>
+
+            <div v-if="opsLoading" class="ops-loading">
+              <Icon icon="lucide:loader-2" class="spin" />
+              <span>AI 正在分析运维数据，请稍候...</span>
+            </div>
+
+            <div v-else-if="opsError" class="ops-error">
+              <Icon icon="lucide:alert-circle" class="mr-1" />
+              <span>{{ opsError }}</span>
+              <button class="retry-btn" @click="exportData">重试</button>
+            </div>
+
+            <div v-else-if="opsResult" class="ops-content">
+              <div class="ops-summary">
+                <p>{{ opsResult.summary }}</p>
+              </div>
+
+              <div v-if="opsResult.preconditions && opsResult.preconditions.length > 0" class="ops-block">
+                <h4><Icon icon="lucide:check-circle" class="mr-1" /> 前置条件</h4>
+                <ul class="ops-checklist">
+                  <li v-for="(pre, idx) in opsResult.preconditions" :key="idx">{{ pre }}</li>
+                </ul>
+              </div>
+
+              <div v-if="opsResult.steps && opsResult.steps.length > 0" class="ops-block">
+                <h4><Icon icon="lucide:list-checks" class="mr-1" /> 运维步骤</h4>
+                <div class="ops-steps">
+                  <div v-for="(step, idx) in opsResult.steps" :key="step.step_id" class="ops-step">
+                    <div class="step-header">
+                      <span class="step-num">{{ idx + 1 }}</span>
+                      <span class="step-title">{{ step.title }}</span>
+                      <span :class="['step-priority', `priority-${step.priority}`]">{{ step.priority }}</span>
+                    </div>
+                    <div class="step-body">
+                      <p class="step-instruction">{{ step.instruction }}</p>
+                      <div class="step-extras">
+                        <div class="step-extra-item">
+                          <Icon icon="lucide:target" class="mr-1" />
+                          <span>预期结果: {{ step.expected_result }}</span>
+                        </div>
+                        <div class="step-extra-item text-warn">
+                          <Icon icon="lucide:alert-triangle" class="mr-1" />
+                          <span>未达标处理: {{ step.if_not_met }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="opsResult.risk_notice && opsResult.risk_notice.length > 0" class="ops-block">
+                <h4 class="text-risk"><Icon icon="lucide:shield-alert" class="mr-1" /> 风险提示</h4>
+                <ul class="ops-risk-list">
+                  <li v-for="(risk, idx) in opsResult.risk_notice" :key="idx">{{ risk }}</li>
+                </ul>
+              </div>
+
+              <div v-if="opsResult.actions && opsResult.actions.length > 0" class="ops-block">
+                <h4><Icon icon="lucide:zap" class="mr-1" /> 建议操作</h4>
+                <div class="ops-actions">
+                  <button v-for="(action, idx) in opsResult.actions" :key="idx" class="ops-action-btn">
+                    <Icon icon="lucide:arrow-right" class="mr-1" />
+                    {{ action.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="opsResult.evidence && opsResult.evidence.length > 0" class="ops-block">
+                <h4><Icon icon="lucide:file-search" class="mr-1" /> 相关依据</h4>
+                <div class="ops-evidence-list">
+                  <div v-for="(ev, idx) in opsResult.evidence" :key="idx" class="ops-evidence-item">
+                    <div class="ev-header">
+                      <span class="ev-source">{{ ev.source }}</span>
+                      <span class="ev-type">{{ ev.source_type }}</span>
+                    </div>
+                    <p class="ev-snippet">{{ ev.snippet }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="opsResult.applicability" class="ops-block">
+                <h4><Icon icon="lucide:scope" class="mr-1" /> 适用范围</h4>
+                <div class="ops-applicability">
+                  <div v-if="opsResult.applicability.applies_to.length > 0" class="apply-group">
+                    <span class="apply-label apply-yes">适用:</span>
+                    <span v-for="(item, idx) in opsResult.applicability.applies_to" :key="idx" class="apply-tag tag-yes">{{ item }}</span>
+                  </div>
+                  <div v-if="opsResult.applicability.not_applies_to.length > 0" class="apply-group">
+                    <span class="apply-label apply-no">不适用:</span>
+                    <span v-for="(item, idx) in opsResult.applicability.not_applies_to" :key="idx" class="apply-tag tag-no">{{ item }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ops-meta">
+                <span><Icon icon="lucide:cpu" class="mr-1" /> {{ opsResult.meta.model }}</span>
+                <span><Icon icon="lucide:clock" class="mr-1" /> {{ new Date(opsResult.meta.generated_at).toLocaleString('zh-CN') }}</span>
+                <span v-if="opsResult.meta.knowledge_hits != null"><Icon icon="lucide:book-open" class="mr-1" /> 知识命中 {{ opsResult.meta.knowledge_hits }}</span>
+                <span v-if="opsResult.meta.history_feedback_hits != null"><Icon icon="lucide:history" class="mr-1" /> 历史反馈 {{ opsResult.meta.history_feedback_hits }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 模态框底部 -->
       <div class="modal-footer">
         <button class="btn btn-default" @click="close">返回</button>
-        <button class="btn btn-primary" @click="exportData">
-          一键统计分析 
+        <button class="btn btn-primary" @click="exportData" :disabled="opsLoading">
+          <Icon v-if="opsLoading" icon="lucide:loader-2" class="spin mr-1" />
+          <span v-if="opsLoading">分析中...</span>
+          <template v-else>一键统计分析</template>
         </button>
         <button class="btn btn-primary btn-icon" @click="exportMarkdown" :disabled="exporting">
           <Icon v-if="exporting" icon="lucide:loader-2" class="spin mr-1" />
@@ -107,6 +225,10 @@ import {
   type BuildingDetailResponse, 
   getBuildingEnergySummary
 } from '../../api/statistics'
+import {
+  getOpsGuide,
+  type OpsGuideResponse
+} from '../../api/anomaly'
 
 const props = defineProps<{
   visible: boolean
@@ -124,6 +246,10 @@ const hourlyData = ref<{ hour: string; total: number; peak: number; average: num
 const hourlyLoading = ref(false)
 
 const exporting = ref(false)
+
+const opsLoading = ref(false)
+const opsError = ref('')
+const opsResult = ref<OpsGuideResponse | null>(null)
 
 const selectedDay = ref('')
 
@@ -144,8 +270,39 @@ const close = () => {
   emit('update:visible', false)
 }
 
-const exportData = () => {
-  alert('功能开发中: 一键统计分析')
+const exportData = async () => {
+  if (!props.buildingId) return
+  opsLoading.value = true
+  opsError.value = ''
+  opsResult.value = null
+
+  try {
+    const res = await getOpsGuide({
+      question: `建筑 ${props.buildingId} 的运维分析`,
+      guide_mode: 'standard_sop',
+      context: {
+        building_id: props.buildingId,
+        meter: 'electricity',
+        time_range: {
+          start: selectedDay.value ? `${selectedDay.value}T00:00:00Z` : new Date(Date.now() - 7 * 86400000).toISOString(),
+          end: selectedDay.value ? `${selectedDay.value}T23:59:59Z` : new Date().toISOString()
+        },
+        page_context: {
+          source: 'building_details_modal',
+          page_type: 'statistics'
+        }
+      },
+      include_knowledge: true,
+      include_history: true,
+      include_actions: true
+    }) as any
+    opsResult.value = res
+  } catch (err: any) {
+    console.error('AI 运维分析失败:', err)
+    opsError.value = err?.response?.data?.detail || err?.message || 'AI 运维分析请求失败'
+  } finally {
+    opsLoading.value = false
+  }
 }
 
 const exportMarkdown = () => {
@@ -719,5 +876,353 @@ function getMockPct(name: string) {
 @keyframes spin { 100% { transform: rotate(360deg); } }
 .font-numeric {
   font-variant-numeric: tabular-nums;
+}
+
+/* ─── AI Ops Guide Panel ─── */
+.ops-guide-panel {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.ops-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 0;
+  justify-content: center;
+  color: #0b4582;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ops-loading .spin {
+  font-size: 20px;
+}
+
+.ops-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: #fef2f2;
+  border-radius: 8px;
+  color: #ef4444;
+  font-size: 13px;
+}
+
+.retry-btn {
+  margin-left: auto;
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.retry-btn:hover {
+  background: #dc2626;
+}
+
+.ops-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ops-summary {
+  background: #eff6ff;
+  border-left: 4px solid #0b4582;
+  padding: 14px 16px;
+  border-radius: 0 8px 8px 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #1e3a5f;
+}
+
+.ops-summary p {
+  margin: 0;
+}
+
+.ops-block h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+}
+
+.ops-block h4.text-risk {
+  color: #dc2626;
+}
+
+.ops-checklist,
+.ops-risk-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #334155;
+}
+
+.ops-risk-list {
+  color: #dc2626;
+}
+
+.ops-risk-list li {
+  background: #fef2f2;
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  list-style: none;
+}
+
+.ops-risk-list li::before {
+  content: '⚠';
+  margin-right: 6px;
+}
+
+.ops-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ops-step {
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: white;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.step-num {
+  width: 24px;
+  height: 24px;
+  background: #0b4582;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.step-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #0f172a;
+  flex: 1;
+}
+
+.step-priority {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+.priority-high,
+.priority-critical {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.priority-medium {
+  background: #fffbeb;
+  color: #f59e0b;
+}
+
+.priority-low {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.step-body {
+  padding: 12px 14px;
+}
+
+.step-instruction {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #334155;
+}
+
+.step-extras {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.step-extra-item {
+  display: flex;
+  align-items: flex-start;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.step-extra-item.text-warn {
+  color: #d97706;
+}
+
+.ops-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ops-action-btn {
+  display: flex;
+  align-items: center;
+  background: #0b4582;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ops-action-btn:hover {
+  background: #093463;
+}
+
+.ops-evidence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ops-evidence-item {
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.ev-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ev-source {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0b4582;
+}
+
+.ev-type {
+  font-size: 11px;
+  background: #e0e7ff;
+  color: #3730a3;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.ev-snippet {
+  margin: 0;
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.ops-applicability {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.apply-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.apply-label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.apply-yes {
+  color: #059669;
+}
+
+.apply-no {
+  color: #dc2626;
+}
+
+.apply-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.tag-yes {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.tag-no {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.ops-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed #e2e8f0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.ops-meta span {
+  display: flex;
+  align-items: center;
+}
+
+.close-ops-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  transition: all 0.2s;
+}
+
+.close-ops-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

@@ -170,6 +170,108 @@ export interface AIAnalyzeAnomalyResponse {
   meta: AIAnalyzeAnomalyMeta
 }
 
+// ─── Types: AI Ops Guide ─────────────────────────────────────────
+export interface OpsGuideIncidentRef {
+  incident_id?: string
+  message_id?: string
+}
+
+export interface OpsGuidePageContext {
+  source?: string
+  page_type?: string
+  current_chart_range?: string
+}
+
+export interface OpsGuideOperatorContext {
+  operator_id?: string
+  operator_name?: string
+}
+
+export interface OpsGuideAnomalySnapshot {
+  summary?: string
+  analysis_mode?: string
+  event_count?: number
+  detector_breakdown?: AnomalyDetectorBreakdownItem[]
+  event_ids?: string[]
+}
+
+export interface OpsGuideContext {
+  building_id: string
+  meter?: string
+  time_range?: TimeRange
+  incident_ref?: OpsGuideIncidentRef
+  page_context?: OpsGuidePageContext
+  operator_context?: OpsGuideOperatorContext
+  anomaly_snapshot?: OpsGuideAnomalySnapshot
+}
+
+export interface OpsGuideRequest {
+  question?: string
+  guide_mode?: 'standard_sop' | 'quick_check' | 'deep_diagnosis'
+  context?: OpsGuideContext
+  include_knowledge?: boolean
+  include_history?: boolean
+  include_actions?: boolean
+}
+
+export interface OpsGuideStep {
+  step_id: string
+  title: string
+  instruction: string
+  priority: string
+  expected_result: string
+  if_not_met: string
+}
+
+export interface OpsGuideEvidence {
+  source_type: string
+  source: string
+  snippet: string
+  score: number
+}
+
+export interface OpsGuideAction {
+  label: string
+  action_type: string
+  target: string
+}
+
+export interface OpsGuideApplicability {
+  applies_to: string[]
+  not_applies_to: string[]
+}
+
+export interface OpsGuideDiagnosisSnapshot {
+  analysis_mode?: string
+  event_count?: number
+  detector_breakdown?: AnomalyDetectorBreakdownItem[]
+  candidate_cause_titles?: string[]
+}
+
+export interface OpsGuideMeta {
+  generated_at: string
+  model: string
+  used_tools?: string[]
+  context_source?: string
+  knowledge_hits?: number
+  history_feedback_hits?: number
+  stage_timings_ms?: Record<string, number>
+}
+
+export interface OpsGuideResponse {
+  incident_id: string
+  status: string
+  summary: string
+  preconditions?: string[]
+  steps: OpsGuideStep[]
+  evidence?: OpsGuideEvidence[]
+  actions?: OpsGuideAction[]
+  risk_notice?: string[]
+  applicability?: OpsGuideApplicability
+  diagnosis_snapshot?: OpsGuideDiagnosisSnapshot
+  meta: OpsGuideMeta
+}
+
 // ─── Types: Anomaly Feedback ─────────────────────────────────────
 export interface CandidateFeedbackItem {
   cause_id: string
@@ -242,6 +344,13 @@ export const getAnomalyAnalysis = (data: EnergyAnomalyAnalysisRequest) => {
 export const aiAnalyzeAnomaly = (data: AIAnalyzeAnomalyRequest) => {
   return request.post<AIAnalyzeAnomalyResponse>('/ai/analyze-anomaly', data, {
     timeout: 120000 // AI 分析需要较长超时
+  })
+}
+
+/** AI 运维指导 */
+export const getOpsGuide = (data: OpsGuideRequest) => {
+  return request.post<OpsGuideResponse>('/ai/ops-guide', data, {
+    timeout: 120000
   })
 }
 
