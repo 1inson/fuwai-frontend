@@ -144,7 +144,7 @@
               <span v-if="selectedBuildings.length > 0" class="selected-count">({{ selectedBuildings.length }})</span>
             </button>
           </template>
-          <button v-else class="btn-export" @click="enterExportMode" :disabled="loading">
+          <button v-else class="btn-export" @click="handleExportClick" :disabled="loading">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
@@ -155,18 +155,17 @@
         </div>
       </div>
 
-      <!-- 表格区域：关键修改部分 -->
+      <!-- 表格区域：关键修改 - 添加ref和监听选择事件 -->
       <BuildingTable
         ref="buildingTableRef"
         :filter-form="{ status: mappedStatus }"
         :advanced-filters="advancedFilters"
         :sort-config="sortConfig"
         :time-range="filterForm.timeRange as 'today' | 'week' | 'month' | 'quarter' | 'year'"
-        v-model:is-export-mode="isExportMode"
-        v-model:selected-ids="selectedBuildings"
         @view-detail="handleViewDetail"
         @view-stats="handleViewStats"
         @fault-analysis="handleFaultAnalysis"
+        @selection-change="handleSelectionChange"
       />
     </div>
 
@@ -218,10 +217,15 @@ const highlights = ref({
 });
 const isHighlightsError = ref(false);
 
-// 导出相关状态 - 关键修改：使用v-model双向绑定
+// 导出相关状态
 const isExportMode = ref(false);
 const selectedBuildings = ref<string[]>([]);
-const buildingTableRef = ref<InstanceType<typeof BuildingTable> | null>(null);
+
+// 关键修改：添加ref引用BuildingTable组件
+const buildingTableRef = ref<InstanceType<typeof BuildingTable> & { 
+  enterExportMode?: () => void;
+  exitExportMode?: () => void;
+} | null>(null);
 
 // 筛选表单
 const filterForm = ref({
@@ -284,12 +288,25 @@ const calculateTimeRange = (range: string) => {
 const timeFilterStart = computed(() => calculateTimeRange(filterForm.value.timeRange).start_time);
 const timeFilterEnd = computed(() => calculateTimeRange(filterForm.value.timeRange).end_time);
 
-// ===== 导出功能方法（关键修改）=====
+// ===== 关键修改：导出功能方法 =====
 
-// 进入导出模式（点击绿色导出按钮）
-const enterExportMode = () => {
-  isExportMode.value = true;
-  selectedBuildings.value = [];
+// 点击导出运行数据按钮
+const handleExportClick = () => {
+  if (!isExportMode.value) {
+    // 第一次点击：进入选择模式
+    isExportMode.value = true;
+    selectedBuildings.value = [];
+    // 关键：调用子组件方法显示多选框
+    buildingTableRef.value?.enterExportMode?.();
+  } else {
+    // 已在选择模式，点击确认导出
+    if (selectedBuildings.value.length === 0) {
+      alert('请至少选择一项建筑数据');
+      return;
+    }
+    // 打开导出弹窗
+    showExportModal.value = true;
+  }
 };
 
 // 确认导出（点击确认导出按钮）
@@ -298,7 +315,6 @@ const handleConfirmExport = () => {
     alert('请至少选择一项建筑数据');
     return;
   }
-  // 打开导出弹窗
   showExportModal.value = true;
 };
 
@@ -306,20 +322,25 @@ const handleConfirmExport = () => {
 const cancelExportMode = () => {
   isExportMode.value = false;
   selectedBuildings.value = [];
+  // 关键：调用子组件方法退出导出模式（隐藏多选框）
+  buildingTableRef.value?.exitExportMode?.();
+};
+
+// 接收子组件的选择变化事件
+const handleSelectionChange = (selectedIds: string[]) => {
+  selectedBuildings.value = selectedIds;
 };
 
 // 导出弹窗确认
 const handleExportConfirm = (exportConfig: { format: string; fileName?: string }) => {
   console.log('导出配置:', exportConfig, '选中建筑IDs:', selectedBuildings.value);
   
-  // 这里可以调用实际的导出API
-  // const selectedData = buildingTableRef.value?.getSelectedData?.() || [];
-  
   alert(`已将 ${selectedBuildings.value.length} 条建筑数据导出为 ${exportConfig.format} 格式`);
   
   // 重置导出状态
   isExportMode.value = false;
   selectedBuildings.value = [];
+  buildingTableRef.value?.exitExportMode?.();
 };
 
 // ===== 其他方法 =====

@@ -38,6 +38,29 @@
       <div class="modal-body">
         <!-- ========== 建筑属性筛选 Tab ========== -->
         <div v-show="activeTab === 'property'" class="tab-content">
+          <!-- 系统状态筛选（新增） -->
+          <div class="section">
+            <div class="section-title">
+              <span class="title-dot"></span>
+              <span>系统状态</span>
+            </div>
+            <div class="form-row">
+              <div class="form-item status-select-item">
+                <label>状态筛选：</label>
+                <select class="input-box status-select" v-model="form.status">
+                  <option value="">全部状态</option>
+                  <option value="normal">运行正常</option>
+                  <option value="error">异常状态</option>
+                  <option value="warning">告警状态</option>
+                  <option value="offline">离线</option>
+                </select>
+                <span class="status-hint" v-if="form.status">
+                  已选择：{{ statusTextMap[form.status] }}
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div class="section">
             <div class="section-title">
               <span class="title-dot"></span>
@@ -295,7 +318,12 @@
 
       <!-- 底部 -->
       <div class="modal-footer">
-        <span class="status-text">已配置筛选条件</span>
+        <span class="status-text">
+          已配置筛选条件
+          <span v-if="form.status" class="active-filter-tag">
+            系统状态：{{ statusTextMap[form.status] }}
+          </span>
+        </span>
         <div class="footer-buttons">
           <button class="btn btn-default" @click="handleClose">取消</button>
           <button class="btn btn-primary" @click="handleSave">
@@ -312,7 +340,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
 
 const props = defineProps<{
   visible: boolean
@@ -328,7 +356,18 @@ const tabs = [
   { key: 'energy', label: '能耗指标筛选' }
 ]
 
+// 状态文本映射（用于显示）
+const statusTextMap: Record<string, string> = {
+  'normal': '运行正常',
+  'error': '异常状态',
+  'warning': '告警状态',
+  'offline': '离线'
+}
+
 const form = reactive({
+  // 系统状态筛选（新增）
+  status: '',
+  
   // 建筑属性
   buildingId: '',
   site: '',
@@ -363,12 +402,34 @@ const form = reactive({
   carbonPerCapita: { compare: '>', value: '' }
 })
 
+// 监听 visible 变化，当弹窗关闭时重置状态筛选（可选）
+watch(() => props.visible, (newVal) => {
+  if (!newVal) {
+    // 弹窗关闭时的逻辑，如果需要重置可以在这里处理
+    // form.status = ''
+  }
+})
+
 const handleClose = () => {
   emit('update:visible', false)
 }
 
 const handleSave = () => {
-  emit('save', form)
+  // 构建筛选条件对象，只包含非空值
+  const filters: Record<string, any> = {}
+  
+  // 添加系统状态筛选（如果已选择）
+  if (form.status) {
+    filters.status = form.status
+  }
+  
+  // 添加其他非空筛选条件
+  if (form.buildingId) filters.buildingId = form.buildingId
+  if (form.site) filters.site = form.site
+  if (form.buildingType) filters.buildingType = form.buildingType
+  // ... 可以添加其他条件
+  
+  emit('save', filters)
   handleClose()
 }
 </script>
@@ -458,7 +519,7 @@ h3 {
   color: #374151;
 }
 
-/* ===== Tab 切换（修复双下划线） ===== */
+/* ===== Tab 切换 ===== */
 .modal-tabs {
   display: flex;
   gap: 0;
@@ -467,7 +528,6 @@ h3 {
   position: relative;
 }
 
-/* 使用伪元素实现底部边框，避免与 tab 按钮边框重叠 */
 .modal-tabs::after {
   content: '';
   position: absolute;
@@ -545,7 +605,7 @@ h3 {
   border-radius: 2px;
 }
 
-/* ===== 建筑属性样式 ===== */
+/* ===== 表单样式 ===== */
 .form-row {
   display: flex;
   gap: 24px;
@@ -570,6 +630,26 @@ h3 {
   color: #374151;
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+/* 系统状态选择项特殊样式 */
+.status-select-item {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.status-select {
+  width: 200px;
+  cursor: pointer;
+  background-color: white;
+}
+
+.status-hint {
+  font-size: 13px;
+  color: #059669;
+  margin-left: 92px; /* label width + gap */
+  margin-top: 4px;
+  font-weight: 500;
 }
 
 .input-box {
@@ -620,7 +700,7 @@ h3 {
   flex-shrink: 0;
 }
 
-/* ===== 能耗指标样式（3列网格） ===== */
+/* ===== 能耗指标样式 ===== */
 .energy-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -677,10 +757,10 @@ h3 {
   flex-shrink: 0;
 }
 
-/* ===== 设备健康度样式（单列布局） ===== */
+/* ===== 设备健康度样式 ===== */
 .health-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;  /* 只占1/3宽度，避免太宽 */
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 20px;
 }
 
@@ -773,6 +853,18 @@ h3 {
 .status-text {
   font-size: 14px;
   color: #6B7280;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.active-filter-tag {
+  background: #DCFCE7;
+  color: #166534;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .footer-buttons {
@@ -827,6 +919,11 @@ h3 {
   .health-grid {
     grid-template-columns: 1fr;
   }
+  
+  .status-hint {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
@@ -843,6 +940,10 @@ h3 {
   .input-box,
   .compare-input input {
     font-size: 13px;
+  }
+  
+  .status-select {
+    width: 100%;
   }
 }
 </style>
