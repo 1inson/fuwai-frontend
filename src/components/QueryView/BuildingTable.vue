@@ -70,10 +70,10 @@
             <td class="text-right">{{ item.eui }}</td>
             <td class="text-right">{{ item.carbon }}</td>
             <td class="text-center">
-              <!-- 复用参考代码的状态标签样式 -->
-              <span class="status-badge" :class="getStatusClass(item.status)">
+              <!-- 参照参考代码的状态标签 -->
+              <span class="status-badge" :class="item.status">
                 <span class="dot"></span>
-                {{ item.statusText }}
+                {{ getStatusText(item.status) }}
               </span>
             </td>
             <td class="text-right">
@@ -109,7 +109,7 @@
         <div class="pagination-info">
           <template v-if="isExportMode">
             已选择 <strong>{{ selectedIds.size }}</strong> 个建筑
-            <button class="cancel-btn" @click="cancelExport">取消</button>
+            <button class="cancel-btn" @click="cancelExport">取消选择</button>
           </template>
           <template v-else>
             显示第 {{ displayStart }}-{{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行记录
@@ -117,14 +117,6 @@
         </div>
         
         <div class="pagination-right">
-          <!-- 导出模式显示确认导出按钮 -->
-          <button v-if="isExportMode" class="confirm-export-btn" :disabled="selectedIds.size === 0" @click="confirmExport">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            确认导出
-          </button>
-
           <div class="pagination-controls">
             <button class="page-btn nav-btn" :disabled="pagination.currentPage === 1" @click="onPageChange(pagination.currentPage - 1)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -160,7 +152,7 @@ interface TableItem {
   energy: number
   eui: number
   carbon: number
-  status: 'normal' | 'warning' | 'error' | 'offline'
+  status: 'online' | 'warning' | 'fault' | 'offline'
   statusText: string
 }
 
@@ -195,26 +187,27 @@ const { getCurrentTimeString } = useTimeManager()
 
 const getCurrentTime = () => new Date(getCurrentTimeString())
 
-// 状态文本映射（保持原有建筑状态描述）
+// 状态文本映射（参照参考代码，文本按用户要求定制）
 const getStatusText = (status: string): string => {
   const map: Record<string, string> = {
-    'normal': '运行正常',
+    'online': '运行正常',
+    'fault': '异常状态',
     'warning': '告警状态',
-    'error': '异常状态',
     'offline': '离线'
   }
-  return map[status] || status || '运行正常'
+  return map[status] || status
 }
 
-// 状态类映射：将内部状态值映射到参考代码的样式类
-const getStatusClass = (status: string): string => {
-  const classMap: Record<string, string> = {
-    'normal': 'online',    // 运行正常 -> 绿色(online样式)
-    'warning': 'warning',  // 告警状态 -> 黄色(warning样式)
-    'error': 'fault',      // 异常状态 -> 红色(fault样式)
-    'offline': 'offline'   // 离线 -> 灰色(offline样式)
+// 状态样式映射：参照参考代码的四种状态
+const mapStatusToClass = (status: string): string => {
+  // 将内部状态转换为参考代码的四种状态类
+  const map: Record<string, string> = {
+    'normal': 'online',
+    'error': 'fault',
+    'warning': 'warning',
+    'offline': 'offline'
   }
-  return classMap[status] || status
+  return map[status] || status
 }
 
 const safeGetArray = (data: any): any[] => {
@@ -315,14 +308,14 @@ const fetchBuildings = async () => {
       return
     }
 
-    // 2. 获取每个建筑的详细数据
+    // 2. 获取每个建筑的详细数据（参照参考代码逻辑）
     const detailedBuildings = await Promise.all(
       buildingList.map(async (building: any) => {
         const buildingId = building.building_id || building.id || building.buildingId
         if (!buildingId) return null
         
         try {
-          // 获取设备列表
+          // 获取设备列表（参照参考代码）
           const metersListRes = await axios.get('/api/meters', {
             params: { building_id: buildingId },
             timeout: 5000
@@ -334,12 +327,15 @@ const fetchBuildings = async () => {
           const metersList = safeGetArray(metersListRes.data)
           const deviceCount = metersList.length
           
-          // 确定状态
-          let topStatus = building.status || 'normal'
+          // 确定状态：优先使用设备状态，参照参考代码逻辑
+          let topStatus: string = building.status || 'offline'
+          
           if (metersList.length > 0) {
+            // 如果有设备，使用第一个设备的状态
             if (metersList[0].status) {
               topStatus = metersList[0].status
             } else {
+              // 尝试获取设备详情
               const meterId = metersList[0].meter_id || metersList[0].id || metersList[0].device_id
               if (meterId) {
                 const meterRes = await axios.get(`/api/meters/${meterId}`, {
@@ -350,12 +346,15 @@ const fetchBuildings = async () => {
                 })
                 
                 const meterData = meterRes.data?.meter || meterRes.data
-                if (meterData) {
-                  topStatus = meterData.status || meterData.state || building.status || 'normal'
+                if (meterData && meterData.status) {
+                  topStatus = meterData.status
                 }
               }
             }
           }
+
+          // 映射到参考代码的四种状态类
+          const mappedStatus = mapStatusToClass(topStatus) as TableItem['status']
 
           // 获取能耗数据
           const timeRange = calculateTimeRange(props.timeRange || 'today')
@@ -372,8 +371,8 @@ const fetchBuildings = async () => {
             energy: totalEnergy,
             eui: eui,
             carbon: carbon,
-            status: topStatus,
-            statusText: getStatusText(topStatus)
+            status: mappedStatus,
+            statusText: getStatusText(mappedStatus)
           }
         } catch (err) {
           console.error(`处理建筑 ${buildingId} 数据时出错:`, err)
@@ -384,17 +383,26 @@ const fetchBuildings = async () => {
 
     let validBuildings = detailedBuildings.filter(item => item !== null) as TableItem[]
     
-    // 按系统状态排序
-    if (props.sortConfig?.field === 'status') {
-      const statusWeight: Record<TableItem['status'], number> = { error: 4, warning: 3, offline: 2, normal: 1 }
-      validBuildings.sort((a, b) => {
-        const aWeight = statusWeight[a.status] ?? 0
-        const bWeight = statusWeight[b.status] ?? 0
-        return props.sortConfig!.order === 'asc'
-          ? aWeight - bWeight
-          : bWeight - aWeight
-      })
-    }
+    // 按系统状态排序（参照参考代码优先级）
+if (props.sortConfig?.field === 'status') {
+  const statusWeight: Record<string, number> = { 
+    'fault': 4,      // 异常状态（红）最高
+    'warning': 3,    // 告警状态（黄）
+    'offline': 2,    // 离线（灰）
+    'online': 1      // 运行正常（绿）
+  }
+  
+  // 安全获取状态权重，默认为0
+  const getWeight = (status: string): number => statusWeight[status] ?? 0
+  
+  validBuildings.sort((a, b) => {
+    const weightA = getWeight(a.status)
+    const weightB = getWeight(b.status)
+    const order = props.sortConfig?.order === 'asc' ? 1 : -1
+    return (weightA - weightB) * order
+  })
+}
+
     
     buildings.value = validBuildings
     
@@ -433,15 +441,6 @@ const toggleSelectAll = () => {
     buildings.value.forEach(item => selectedIds.value.add(item.id))
   }
   selectedIds.value = new Set(selectedIds.value)
-}
-
-const confirmExport = () => {
-  const selectedData = buildings.value.filter(item => selectedIds.value.has(item.id))
-  emit('export-data', {
-    data: selectedData,
-    ids: Array.from(selectedIds.value),
-    allData: false
-  })
 }
 
 // ===== 事件处理 =====
@@ -607,7 +606,7 @@ tr:hover {
   margin-top: 2px;
 }
 
-/* ===== 状态标签（复用参考代码的 status-badge 样式） ===== */
+/* ===== 状态标签（完全参照参考代码）===== */
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -627,25 +626,25 @@ tr:hover {
   background: currentColor;
 }
 
-/* 运行正常 - 绿色（对应参考代码的 online） */
+/* 运行正常 - 绿色（对应参考代码 online） */
 .status-badge.online {
   background: #ecfdf5;
   color: #059669;
 }
 
-/* 告警状态 - 黄色（对应参考代码的 warning） */
-.status-badge.warning {
-  background: #fffbeb;
-  color: #d97706;
-}
-
-/* 异常状态 - 红色（对应参考代码的 fault） */
+/* 异常状态 - 红色（对应参考代码 fault） */
 .status-badge.fault {
   background: #fef2f2;
   color: #dc2626;
 }
 
-/* 离线 - 灰色（对应参考代码的 offline） */
+/* 告警状态 - 黄色（对应参考代码 warning） */
+.status-badge.warning {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+/* 离线 - 灰色（对应参考代码 offline） */
 .status-badge.offline {
   background: #f1f5f9;
   color: #94a3b8;
@@ -771,7 +770,7 @@ tr:hover {
   font-weight: 600;
 }
 
-/* 取消按钮 */
+/* 取消选择按钮 */
 .cancel-btn {
   padding: 6px 12px;
   border: 1px solid #E5E7EB;
@@ -787,34 +786,6 @@ tr:hover {
   border-color: #DC2626;
   color: #DC2626;
   background: #FEF2F2;
-}
-
-/* 确认导出按钮 */
-.confirm-export-btn {
-  display: flex;
-  align-items: center;
-  padding: 8px 16px;
-  border: none;
-  background: #52C41A;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #fff;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 500;
-  margin-right: 12px;
-}
-
-.confirm-export-btn:hover:not(:disabled) {
-  background: #389E0D;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(82, 196, 26, 0.3);
-}
-
-.confirm-export-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: #9CA3AF;
 }
 
 .pagination-right {

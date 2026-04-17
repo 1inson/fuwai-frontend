@@ -136,7 +136,7 @@
         <div class="export-section">
           <template v-if="isExportMode">
             <button class="btn-cancel-select" @click="cancelExportMode">取消选择</button>
-            <button class="btn-confirm-export-green" @click="handleExportClick" :disabled="selectedBuildings.length === 0">
+            <button class="btn-confirm-export-green" @click="handleConfirmExport" :disabled="selectedBuildings.length === 0">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
@@ -144,7 +144,7 @@
               <span v-if="selectedBuildings.length > 0" class="selected-count">({{ selectedBuildings.length }})</span>
             </button>
           </template>
-          <button v-else class="btn-export" @click="handleExportClick" :disabled="loading">
+          <button v-else class="btn-export" @click="enterExportMode" :disabled="loading">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
@@ -155,19 +155,18 @@
         </div>
       </div>
 
-      <!-- 表格区域：通过ref调用子组件方法 -->
+      <!-- 表格区域：关键修改部分 -->
       <BuildingTable
         ref="buildingTableRef"
         :filter-form="{ status: mappedStatus }"
         :advanced-filters="advancedFilters"
         :sort-config="sortConfig"
         :time-range="filterForm.timeRange as 'today' | 'week' | 'month' | 'quarter' | 'year'"
-        :is-export-mode="isExportMode"
+        v-model:is-export-mode="isExportMode"
+        v-model:selected-ids="selectedBuildings"
         @view-detail="handleViewDetail"
         @view-stats="handleViewStats"
         @fault-analysis="handleFaultAnalysis"
-        @selection-change="handleSelectionChange"
-        @export-confirmed="handleExportConfirmed"
       />
     </div>
 
@@ -175,7 +174,11 @@
     <FilterModal v-model:visible="showAdvanced" @save="handleAdvancedSave" />
 
     <!-- 导出运行数据弹窗 -->
-    <ExportModal v-model:visible="showExportModal" @export="handleExportConfirm" />
+    <ExportModal 
+      v-model:visible="showExportModal" 
+      :selected-count="selectedBuildings.length"
+      @export="handleExportConfirm" 
+    />
     
     <!-- 统计详情弹窗 -->
     <BuildingDetailsModal
@@ -188,14 +191,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import FilterModal from './FilterModal.vue';
 import BuildingTable from './BuildingTable.vue';
 import ExportModal from './ExportModal.vue';
 import BuildingDetailsModal from '../../components/Statistics/BuildingDetailsModal.vue';
-import { useTimeManager } from '../../utils/timeManager'; // 根据实际路径调整
+import { useTimeManager } from '../../utils/timeManager';
 
 const router = useRouter();
 const { getCurrentTimeString } = useTimeManager();
@@ -215,14 +218,14 @@ const highlights = ref({
 });
 const isHighlightsError = ref(false);
 
-// 导出相关状态
+// 导出相关状态 - 关键修改：使用v-model双向绑定
 const isExportMode = ref(false);
 const selectedBuildings = ref<string[]>([]);
-const buildingTableRef = ref<InstanceType<typeof BuildingTable> & { enterExportMode?: () => void }>();
+const buildingTableRef = ref<InstanceType<typeof BuildingTable> | null>(null);
 
-// 筛选表单：使用中文显示值
+// 筛选表单
 const filterForm = ref({
-  status: '', // 界面显示：正常/异常/告警/离线
+  status: '',
   timeRange: 'today'
 });
 
@@ -257,7 +260,7 @@ const sortConfig = ref({
   order: 'asc' as 'asc' | 'desc'
 });
 
-// ===== 时间范围计算（基于设置页面的当前时间） =====
+// ===== 时间范围计算 =====
 const getCurrentTime = () => new Date(getCurrentTimeString());
 
 const calculateTimeRange = (range: string) => {
@@ -269,21 +272,11 @@ const calculateTimeRange = (range: string) => {
   const day = now.getDay();
   
   switch (range) {
-    case 'today': 
-      start = new Date(year, month, date, 0, 0, 0); 
-      break;
-    case 'week': 
-      start = new Date(year, month, date - (day === 0 ? 6 : day - 1), 0, 0, 0); 
-      break;
-    case 'month': 
-      start = new Date(year, month, 1, 0, 0, 0); 
-      break;
-    case 'quarter': 
-      start = new Date(year, Math.floor(month / 3) * 3, 1, 0, 0, 0); 
-      break;
-    case 'year': 
-      start = new Date(year, 0, 1, 0, 0, 0); 
-      break;
+    case 'today': start = new Date(year, month, date, 0, 0, 0); break;
+    case 'week': start = new Date(year, month, date - (day === 0 ? 6 : day - 1), 0, 0, 0); break;
+    case 'month': start = new Date(year, month, 1, 0, 0, 0); break;
+    case 'quarter': start = new Date(year, Math.floor(month / 3) * 3, 1, 0, 0, 0); break;
+    case 'year': start = new Date(year, 0, 1, 0, 0, 0); break;
   }
   return { start_time: start.toISOString(), end_time: now.toISOString() };
 };
@@ -291,13 +284,49 @@ const calculateTimeRange = (range: string) => {
 const timeFilterStart = computed(() => calculateTimeRange(filterForm.value.timeRange).start_time);
 const timeFilterEnd = computed(() => calculateTimeRange(filterForm.value.timeRange).end_time);
 
-// ===== 方法 =====
+// ===== 导出功能方法（关键修改）=====
 
-// 获取系统高亮事项（异常/告警数量）
+// 进入导出模式（点击绿色导出按钮）
+const enterExportMode = () => {
+  isExportMode.value = true;
+  selectedBuildings.value = [];
+};
+
+// 确认导出（点击确认导出按钮）
+const handleConfirmExport = () => {
+  if (selectedBuildings.value.length === 0) {
+    alert('请至少选择一项建筑数据');
+    return;
+  }
+  // 打开导出弹窗
+  showExportModal.value = true;
+};
+
+// 取消导出模式
+const cancelExportMode = () => {
+  isExportMode.value = false;
+  selectedBuildings.value = [];
+};
+
+// 导出弹窗确认
+const handleExportConfirm = (exportConfig: { format: string; fileName?: string }) => {
+  console.log('导出配置:', exportConfig, '选中建筑IDs:', selectedBuildings.value);
+  
+  // 这里可以调用实际的导出API
+  // const selectedData = buildingTableRef.value?.getSelectedData?.() || [];
+  
+  alert(`已将 ${selectedBuildings.value.length} 条建筑数据导出为 ${exportConfig.format} 格式`);
+  
+  // 重置导出状态
+  isExportMode.value = false;
+  selectedBuildings.value = [];
+};
+
+// ===== 其他方法 =====
+
 const fetchHighlights = async () => {
   try {
     isHighlightsError.value = false;
-    // 使用指定的接口地址
     const response = await axios.get('http://127.0.0.1:4523/m1/8021021-7775608-default/dashboard/highlights', {
       timeout: 5000
     });
@@ -314,58 +343,12 @@ const fetchHighlights = async () => {
   }
 };
 
-// 导出按钮点击逻辑
-const handleExportClick = () => {
-  if (!isExportMode.value) {
-    // 第一次点击：进入选择模式，通知子组件显示复选框
-    isExportMode.value = true;
-    // 调用子组件方法进入导出模式（子组件需暴露enterExportMode方法）
-    buildingTableRef.value?.enterExportMode?.();
-  } else {
-    // 已在选择模式，点击确认导出
-    if (selectedBuildings.value.length === 0) {
-      alert('请至少选择一项建筑数据');
-      return;
-    }
-    // 直接处理导出确认，使用选中的建筑ID
-    handleExportConfirmed(selectedBuildings.value);
-  }
-};
-
-// 取消导出模式
-const cancelExportMode = () => {
-  isExportMode.value = false;
-  selectedBuildings.value = [];
-};
-
-// 接收子组件的选择变化
-const handleSelectionChange = (selectedIds: string[]) => {
-  selectedBuildings.value = selectedIds;
-};
-
-// 接收子组件的导出确认（包含完整数据）
-const handleExportConfirmed = (exportData: any) => {
-  console.log('准备导出数据:', exportData);
-  showExportModal.value = true;
-};
-
-// 导出弹窗确认
-const handleExportConfirm = (exportConfig: { format: string }) => {
-  console.log('导出配置:', exportConfig, '选中建筑:', selectedBuildings.value);
-  alert(`已将 ${selectedBuildings.value.length} 条建筑数据加入导出队列`);
-  
-  // 重置导出状态
-  isExportMode.value = false;
-  selectedBuildings.value = [];
-};
-
-// 筛选相关方法
 const handleStatusChange = () => {
-  // 状态变化已通过计算属性mappedStatus传递给子组件，子组件watch会重新加载
+  // 状态变化自动触发子组件重新加载
 };
 
 const handleTimeRangeChange = () => {
-  // 时间范围变化传递给子组件
+  // 时间范围变化自动触发子组件重新加载
 };
 
 const handleReset = () => {
@@ -401,7 +384,6 @@ const clearAllAdvancedFilters = () => {
   advancedFilters.value = {};
 };
 
-// 表格行操作
 const handleViewDetail = (item: any) => {
   router.push(`/building/${item.buildingId}`);
 };
@@ -421,8 +403,8 @@ const handleFaultAnalysis = (item: any) => {
 // ===== 生命周期 =====
 onMounted(() => {
   fetchHighlights();
-  // 可以设置定时刷新高亮数据
-  setInterval(fetchHighlights, 30000); // 每30秒刷新一次
+  // 每30秒刷新一次高亮数据
+  setInterval(fetchHighlights, 30000);
 });
 </script>
 
