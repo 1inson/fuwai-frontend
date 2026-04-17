@@ -15,14 +15,25 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-if="loading">
-            <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
-              数据加载中...
+          <tr v-if="loading" class="loading-row">
+            <td colspan="7" class="loading-cell">
+              <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <span>数据加载中...</span>
+              </div>
             </td>
           </tr>
-          <tr v-else-if="buildings.length === 0">
-            <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
-              暂无数据
+          <tr v-else-if="buildings.length === 0" class="empty-row">
+            <td colspan="7" class="empty-cell">
+              <div class="empty-content">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="9" y1="9" x2="15" y2="9"></line>
+                  <line x1="9" y1="13" x2="15" y2="13"></line>
+                  <line x1="9" y1="17" x2="11" y2="17"></line>
+                </svg>
+                <p>暂无建筑运行数据</p>
+              </div>
             </td>
           </tr>
           <tr v-else v-for="item in buildings" :key="item.id">
@@ -40,22 +51,22 @@
             <td class="text-right">{{ item.carbon }}</td>
             <td class="text-center">
               <span :class="['status-tag', item.status]">
-                <span class="status-dot"></span>
+                <span class="dot"></span>
                 {{ item.statusText }}
               </span>
             </td>
             <td class="text-right">
               <div class="actions">
-                <!-- 蓝色眼睛：查看详情 -->
-                <button class="action-btn view-btn" @click="$emit('view-detail', item)" title="查看详情">
+                <!-- 蓝色查看 -->
+                <button class="action-btn blue" @click="handleView(item)" title="查看详情">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
                   </svg>
                 </button>
                 
-                <!-- 绿色图表：统计数据 -->
-                <button class="action-btn stats-btn" @click="$emit('view-stats', item)" title="统计数据">
+                <!-- 绿色统计 -->
+                <button class="action-btn green" @click="handleStats(item)" title="统计数据">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="20" x2="18" y2="10"></line>
                     <line x1="12" y1="20" x2="12" y2="4"></line>
@@ -63,10 +74,10 @@
                   </svg>
                 </button>
                 
-                <!-- 橙色警告：故障分析 -->
-                <button class="action-btn warning-btn" @click="$emit('fault-analysis', item)" title="故障分析">
+                <!-- 橙色故障 -->
+                <button class="action-btn orange" @click="handleFault(item)" title="故障分析">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
                     <line x1="12" y1="9" x2="12" y2="13"></line>
                     <line x1="12" y1="17" x2="12.01" y2="17"></line>
                   </svg>
@@ -77,42 +88,53 @@
         </tbody>
       </table>
 
+      <!-- 分页栏：添加导出按钮 -->
       <div class="pagination-bar">
         <div class="pagination-info">
-          显示 {{ displayStart }}-{{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行数据
+          显示第 {{ displayStart }}-{{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行记录
         </div>
-        <div class="pagination-controls">
-          <!-- 上一页 -->
-          <button 
-            class="page-btn nav-btn" 
-            :disabled="pagination.currentPage === 1"
-            @click="onPageChange(pagination.currentPage - 1)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="15 18 9 12 15 6"></polyline>
+        
+        <div class="pagination-right">
+          <!-- 导出按钮 -->
+          <button class="export-btn" @click="handleExport" :disabled="loading || buildings.length === 0">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
+            导出运行数据
           </button>
 
-          <!-- 页码按钮 -->
-          <button 
-            v-for="page in visiblePages" 
-            :key="page"
-            :class="['page-btn', { active: page === pagination.currentPage }]"
-            @click="onPageChange(page)"
-          >
-            {{ page }}
-          </button>
+          <div class="pagination-controls">
+            <button 
+              class="page-btn nav-btn" 
+              :disabled="pagination.currentPage === 1"
+              @click="onPageChange(pagination.currentPage - 1)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
 
-          <!-- 下一页 -->
-          <button 
-            class="page-btn nav-btn" 
-            :disabled="pagination.currentPage === totalPages"
-            @click="onPageChange(pagination.currentPage + 1)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
+            <button 
+              v-for="page in visiblePages" 
+              :key="page"
+              :class="['page-btn', { active: page === pagination.currentPage }]"
+              @click="onPageChange(page)"
+            >
+              {{ page }}
+            </button>
+
+            <button 
+              class="page-btn nav-btn" 
+              :disabled="pagination.currentPage === totalPages"
+              @click="onPageChange(pagination.currentPage + 1)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -123,8 +145,7 @@
 import { computed, ref, onMounted, watch } from 'vue'
 import axios from 'axios'
 
-const emit = defineEmits(['view-detail', 'view-stats', 'fault-analysis'])
-
+// ===== 类型定义 =====
 interface TableItem {
   id: string
   buildingId: string
@@ -136,33 +157,32 @@ interface TableItem {
   statusText: string
 }
 
+interface PaginationInfo {
+  currentPage: number
+  pageSize: number
+  total: number
+}
+
+// ===== Props & Emits =====
 const props = defineProps<{
-  filterForm?: {
-    status?: string
-  },
+  filterForm?: { status?: string },
   advancedFilters?: Record<string, any>,
-  sortConfig?: {
-    field: string,
-    order: 'asc' | 'desc'
-  },
+  sortConfig?: { field: string, order: 'asc' | 'desc' },
   timeRange?: 'today' | 'week' | 'month' | 'quarter' | 'year'
 }>()
 
+const emit = defineEmits(['view-detail', 'view-stats', 'fault-analysis', 'export-data'])
+
+// ===== 响应式数据 =====
 const buildings = ref<TableItem[]>([])
-const pagination = ref({
-  currentPage: 1,
-  pageSize: 7,
-  total: 0
-})
+const pagination = ref<PaginationInfo>({ currentPage: 1, pageSize: 7, total: 0 })
 const loading = ref(false)
 
+// ===== 工具函数 =====
 import { useTimeManager } from '../../utils/timeManager'
 const { getCurrentTimeString } = useTimeManager()
 
-const getCurrentTime = () => {
-  const timeStr = getCurrentTimeString()
-  return new Date(timeStr)
-}
+const getCurrentTime = () => new Date(getCurrentTimeString())
 
 const getStatusText = (status: string): string => {
   const map: Record<string, string> = {
@@ -171,7 +191,7 @@ const getStatusText = (status: string): string => {
     'error': '异常状态',
     'offline': '离线'
   }
-  return map[status] || '运行正常'
+  return map[status] || status || '运行正常'
 }
 
 const safeGetArray = (data: any): any[] => {
@@ -182,6 +202,22 @@ const safeGetArray = (data: any): any[] => {
   return []
 }
 
+// ===== 数据获取方法 =====
+const calculateTimeRange = (range: string) => {
+  const now = getCurrentTime()
+  let start = new Date(now)
+  const year = now.getFullYear(), month = now.getMonth(), date = now.getDate(), day = now.getDay()
+  
+  switch (range) {
+    case 'today': start = new Date(year, month, date, 0, 0, 0); break
+    case 'week': start = new Date(year, month, date - (day === 0 ? 6 : day - 1), 0, 0, 0); break
+    case 'month': start = new Date(year, month, 1, 0, 0, 0); break
+    case 'quarter': start = new Date(year, Math.floor(month / 3) * 3, 1, 0, 0, 0); break
+    case 'year': start = new Date(year, 0, 1, 0, 0, 0); break
+  }
+  return { start_time: start.toISOString(), end_time: now.toISOString() }
+}
+
 const fetchEnergySummary = async (buildingId: string, timeRange: any) => {
   try {
     const response = await axios.get(`/api/buildings/${buildingId}/energy/summary`, {
@@ -190,8 +226,8 @@ const fetchEnergySummary = async (buildingId: string, timeRange: any) => {
     })
     const data = response.data?.data || response.data
     if (data && typeof data === 'object') {
-      const energyTypes = ['electricity', 'water', 'gas', 'steam', 'chilledwater', 'hotwater', 'irrigation', 'solar']
-      return energyTypes.reduce((sum, type) => sum + (data[type] || data[`${type}_energy`] || 0), 0)
+      const types = ['electricity', 'water', 'gas', 'steam', 'chilledwater', 'hotwater', 'irrigation', 'solar']
+      return types.reduce((sum, type) => sum + (data[type] || data[`${type}_energy`] || 0), 0)
     }
     return 0
   } catch (error) {
@@ -228,43 +264,11 @@ const fetchCarbon = async (buildingId: string, timeRange: any) => {
   }
 }
 
-const calculateTimeRange = (range: string) => {
-  const now = getCurrentTime()
-  const end = now.toISOString()
-  let start = now
-  const year = now.getFullYear()
-  const month = now.getMonth()
-  const date = now.getDate()
-  const day = now.getDay()
-  
-  switch (range) {
-    case 'today':
-      start = new Date(year, month, date, 0, 0, 0)
-      break
-    case 'week':
-      const diff = day === 0 ? 6 : day - 1
-      start = new Date(year, month, date - diff, 0, 0, 0)
-      break
-    case 'month':
-      start = new Date(year, month, 1, 0, 0, 0)
-      break
-    case 'quarter':
-      const quarter = Math.floor(month / 3)
-      start = new Date(year, quarter * 3, 1, 0, 0, 0)
-      break
-    case 'year':
-      start = new Date(year, 0, 1, 0, 0, 0)
-      break
-    default:
-      start = new Date(year, month, date, 0, 0, 0)
-  }
-  
-  return { start_time: start.toISOString(), end_time: end }
-}
-
 const fetchBuildings = async () => {
   loading.value = true
+  
   try {
+    // 1. 获取建筑列表
     const buildingsRes = await axios.get('/api/buildings', {
       params: {
         page: pagination.value.currentPage,
@@ -288,17 +292,14 @@ const fetchBuildings = async () => {
       return
     }
 
+    // 2. 获取每个建筑的详细数据
     const detailedBuildings = await Promise.all(
       buildingList.map(async (building: any) => {
         const buildingId = building.building_id || building.id || building.buildingId
-        if (!buildingId) {
-          console.warn('建筑数据缺少ID:', building)
-          return null
-        }
+        if (!buildingId) return null
         
         try {
-          // ===== 方案B：先获取设备列表，再查详情 =====
-          // 第一步：获取设备列表（获取设备ID和个数）
+          // 获取设备列表
           const metersListRes = await axios.get('/api/meters', {
             params: { building_id: buildingId },
             timeout: 5000
@@ -310,36 +311,36 @@ const fetchBuildings = async () => {
           const metersList = safeGetArray(metersListRes.data)
           const deviceCount = metersList.length
           
-          // 第二步：如果有设备，取第一个设备查详情获取状态
+          // 确定状态
           let topStatus = building.status || 'normal'
-          if (metersList.length > 0 && metersList[0].meter_id) {
-            const meterId = metersList[0].meter_id
-            const meterRes = await axios.get(`/api/meters/${meterId}`, {
-              timeout: 5000
-            }).catch(err => {
-              console.warn(`获取设备 ${meterId} 详情失败:`, err.message)
-              return { data: null }
-            })
-            
-            const meterData = meterRes.data?.meter || meterRes.data
-            topStatus = meterData?.status || meterData?.state || building.status || 'normal'
+          if (metersList.length > 0) {
+            if (metersList[0].status) {
+              topStatus = metersList[0].status
+            } else {
+              const meterId = metersList[0].meter_id || metersList[0].id || metersList[0].device_id
+              if (meterId) {
+                const meterRes = await axios.get(`/api/meters/${meterId}`, {
+                  timeout: 5000
+                }).catch(err => {
+                  console.warn(`获取设备 ${meterId} 详情失败:`, err.message)
+                  return { data: null }
+                })
+                
+                const meterData = meterRes.data?.meter || meterRes.data
+                if (meterData) {
+                  topStatus = meterData.status || meterData.state || building.status || 'normal'
+                }
+              }
+            }
           }
 
-          // 并行获取其他数据（能耗、EUI、碳排放）
-          const [summaryRes, euiRes] = await Promise.all([
-            axios.get(`/api/buildings/${buildingId}/energy/summary`, { timeout: 5000 })
-              .catch(err => { console.warn(`获取能耗摘要失败:`, err.message); return { data: null } }),
-            axios.get('/api/energy/cop', { params: { building_id: buildingId }, timeout: 5000 })
-              .catch(err => { console.warn(`获取EUI失败:`, err.message); return { data: null } })
+          // 获取能耗数据
+          const timeRange = calculateTimeRange(props.timeRange || 'today')
+          const [totalEnergy, eui, carbon] = await Promise.all([
+            fetchEnergySummary(buildingId, timeRange),
+            fetchEUI(buildingId, timeRange),
+            fetchCarbon(buildingId, timeRange)
           ])
-
-          const summary = summaryRes.data?.data || summaryRes.data || {}
-          const energyTypes = ['electricity', 'water', 'gas', 'steam', 'chilledwater', 'hotwater', 'irrigation', 'solar']
-          const totalEnergy = energyTypes.reduce((sum, type) => sum + (summary[type] || summary[`${type}_energy`] || 0), 0)
-          const carbon = summary.gas || summary.gas_energy || 0
-          
-          const euiData = euiRes.data?.data || euiRes.data || {}
-          const eui = euiData.eui || euiData.cop || euiData.value || 0
 
           return {
             id: buildingId,
@@ -358,40 +359,68 @@ const fetchBuildings = async () => {
       })
     )
 
-    const validBuildings = detailedBuildings.filter(item => item !== null) as TableItem[]
+    let validBuildings = detailedBuildings.filter(item => item !== null) as TableItem[]
+    
+    // 按系统状态排序
     if (props.sortConfig?.field === 'status') {
-      const statusWeight: Record<string, number> = { 'error': 4, 'warning': 3, 'offline': 2, 'normal': 1 }
-      validBuildings.sort((a, b) => props.sortConfig!.order === 'asc' ? statusWeight[a.status] - statusWeight[b.status] : statusWeight[b.status] - statusWeight[a.status])
+      const statusWeight: Record<TableItem['status'], number> = { error: 4, warning: 3, offline: 2, normal: 1 }
+      validBuildings.sort((a, b) => {
+        const aWeight = statusWeight[a.status] ?? 0
+        const bWeight = statusWeight[b.status] ?? 0
+        return props.sortConfig!.order === 'asc'
+          ? aWeight - bWeight
+          : bWeight - aWeight
+      })
     }
+    
     buildings.value = validBuildings
+    
   } catch (error: any) {
     console.error('获取建筑列表失败:', error)
-    if (error.response) {
-      console.error('响应数据:', error.response.data)
-      console.error('响应状态:', error.response.status)
-    }
     buildings.value = []
   } finally {
     loading.value = false
   }
 }
 
-onMounted(() => { fetchBuildings() })
+// ===== 事件处理 =====
+const handleView = (item: TableItem) => {
+  emit('view-detail', item)
+}
 
-watch(() => [props.filterForm?.status, props.advancedFilters, props.sortConfig], () => {
-  pagination.value.currentPage = 1
-  fetchBuildings()
-}, { deep: true })
+const handleStats = (item: TableItem) => {
+  emit('view-stats', item)
+}
 
-watch(() => pagination.value.currentPage, () => { fetchBuildings() })
-watch(() => props.timeRange, () => { pagination.value.currentPage = 1; fetchBuildings() }, { immediate: false })
+const handleFault = (item: TableItem) => {
+  emit('fault-analysis', item)
+}
 
+// 导出数据逻辑
+const handleExport = async () => {
+  try {
+    // 触发导出事件，让父组件处理或自行处理
+    emit('export-data', {
+      data: buildings.value,
+      pagination: pagination.value,
+      timeRange: props.timeRange
+    })
+    
+    // 或者自行处理下载逻辑：
+    // const csvContent = convertToCSV(buildings.value)
+    // downloadFile(csvContent, `建筑运行数据_${new Date().toLocaleDateString()}.csv`, 'text/csv')
+    
+  } catch (error) {
+    console.error('导出数据失败:', error)
+  }
+}
+
+// ===== 计算属性 =====
 const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.pageSize) || 1)
 const displayStart = computed(() => pagination.value.total === 0 ? 0 : (pagination.value.currentPage - 1) * pagination.value.pageSize + 1)
 const displayEnd = computed(() => {
   if (pagination.value.total === 0 && buildings.value.length === 0) return 0
-  const effectiveTotal = pagination.value.total || buildings.value.length
-  return Math.min(pagination.value.currentPage * pagination.value.pageSize, effectiveTotal)
+  return Math.min(pagination.value.currentPage * pagination.value.pageSize, pagination.value.total || buildings.value.length)
 })
 
 const visiblePages = computed(() => {
@@ -406,6 +435,20 @@ const visiblePages = computed(() => {
   return pages
 })
 
+// ===== 生命周期 & 监听 =====
+onMounted(() => { fetchBuildings() })
+
+watch(() => [props.filterForm?.status, props.advancedFilters, props.sortConfig], () => {
+  pagination.value.currentPage = 1
+  fetchBuildings()
+}, { deep: true })
+
+watch(() => pagination.value.currentPage, () => { fetchBuildings() })
+watch(() => props.timeRange, () => { 
+  pagination.value.currentPage = 1
+  fetchBuildings() 
+}, { immediate: false })
+
 const onPageChange = (page: number) => {
   if (page < 1 || page > totalPages.value) return
   pagination.value.currentPage = page
@@ -413,12 +456,15 @@ const onPageChange = (page: number) => {
 </script>
 
 <style scoped>
+/* ===== 卡片容器 ===== */
 .table-card {
   background: #ffffff;
   border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
+/* ===== 表格区域 ===== */
 .table-wrapper {
   overflow-x: auto;
 }
@@ -439,6 +485,7 @@ th {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   border-bottom: 1px solid #E5E7EB;
+  white-space: nowrap;
 }
 
 td {
@@ -460,6 +507,7 @@ tr:hover {
   text-align: center;
 }
 
+/* ===== 数据单元格样式 ===== */
 .building-id {
   font-family: 'Courier New', monospace;
   font-weight: 600;
@@ -485,12 +533,13 @@ tr:hover {
   margin-top: 2px;
 }
 
+/* ===== 状态标签（完全对齐参考代码）===== */
 .status-tag {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border-radius: 16px;
+  border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
   border: 1px solid transparent;
@@ -498,37 +547,37 @@ tr:hover {
 }
 
 .status-tag.normal {
-  background: #ECFDF3;
-  color: #027A48;
-  border-color: #A7F3D0;
+  background: #F0FDF4;
+  color: #16A34A;
+  border-color: #DCFCE7;
 }
 
 .status-tag.warning {
   background: #FFFBEB;
-  color: #B45309;
-  border-color: #FDE68A;
+  color: #D97706;
+  border-color: #FEF3C7;
 }
 
 .status-tag.error {
   background: #FEF2F2;
-  color: #B91C1C;
-  border-color: #FECACA;
+  color: #DC2626;
+  border-color: #FEE2E2;
 }
 
 .status-tag.offline {
   background: #F3F4F6;
-  color: #4B5563;
-  border-color: #D1D5DB;
+  color: #6B7280;
+  border-color: #E5E7EB;
 }
 
-.status-dot {
+.status-tag .dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
-  display: inline-block;
 }
 
+/* ===== 操作按钮（完全采用参考代码的class命名和配色）===== */
 .actions {
   display: flex;
   gap: 8px;
@@ -544,50 +593,90 @@ tr:hover {
   align-items: center;
   justify-content: center;
   border: 1px solid;
-  background: #ffffff;
+  background: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.action-btn.view-btn {
-  color: #3B82F6;
+/* 蓝色 - 查看 */
+.action-btn.blue {
+  color: #005BAC;
   border-color: #BFDBFE;
+}
+
+.action-btn.blue:hover {
   background: #EFF6FF;
-}
-
-.action-btn.view-btn:hover {
-  background: #3B82F6;
-  color: #ffffff;
-  border-color: #3B82F6;
   transform: scale(1.05);
 }
 
-.action-btn.stats-btn {
-  color: #10B981;
-  border-color: #A7F3D0;
-  background: #ECFDF3;
+/* 绿色 - 统计 */
+.action-btn.green {
+  color: #27AE60;
+  border-color: #BBF7D0;
 }
 
-.action-btn.stats-btn:hover {
-  background: #10B981;
-  color: #ffffff;
-  border-color: #10B981;
+.action-btn.green:hover {
+  background: #F0FDF4;
   transform: scale(1.05);
 }
 
-.action-btn.warning-btn {
-  color: #F59E0B;
+/* 橙色 - 故障 */
+.action-btn.orange {
+  color: #F39C12;
   border-color: #FDE68A;
-  background: #FFFBEB;
 }
 
-.action-btn.warning-btn:hover {
-  background: #F59E0B;
-  color: #ffffff;
-  border-color: #F59E0B;
+.action-btn.orange:hover {
+  background: #FFFBEB;
   transform: scale(1.05);
 }
 
+/* ===== Loading & Empty 状态 ===== */
+.loading-row, .empty-row {
+  background: transparent !important;
+}
+
+.loading-cell, .empty-cell {
+  text-align: center;
+  padding: 60px 20px;
+  border-bottom: none;
+}
+
+.loading-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #6B7280;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #F3F4F6;
+  border-top-color: #005BAC;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #9CA3AF;
+}
+
+.empty-content p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* ===== 分页栏（完全采用参考代码的样式结构）===== */
 .pagination-bar {
   display: flex;
   justify-content: space-between;
@@ -598,27 +687,26 @@ tr:hover {
 }
 
 .pagination-info {
-  font-size: 13px;
+  font-size: 14px;
   color: #6B7280;
   font-weight: 400;
 }
 
-.pagination-controls {
+.pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* 导出按钮 */
+.export-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.page-btn {
-  min-width: 32px;
-  height: 32px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 8px 16px;
   border: 1px solid #E5E7EB;
-  background: #ffffff;
-  border-radius: 50%;
+  background: #FFFFFF;
+  border-radius: 6px;
   font-size: 13px;
   color: #374151;
   cursor: pointer;
@@ -626,36 +714,65 @@ tr:hover {
   font-weight: 500;
 }
 
-.page-btn:hover:not(:disabled):not(.active) {
-  border-color: #D1D5DB;
+.export-btn:hover:not(:disabled) {
+  border-color: #005BAC;
+  color: #005BAC;
+  background: #F5F7FA;
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
   background: #F9FAFB;
-  color: #111827;
+}
+
+/* 分页控制 */
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #E5E7EB;
+  background: #fff;
+  border-radius: 50%;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+  font-weight: 500;
+}
+
+.page-btn:hover:not(:disabled):not(.active) {
+  border-color: #005BAC;
+  color: #005BAC;
+  background: #F5F7FA;
+}
+
+.nav-btn {
+  color: #9CA3AF;
+}
+
+.nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: #E5E7EB;
+  color: #D1D5DB;
 }
 
 .page-btn.active {
   background: #005BAC;
-  color: #ffffff;
+  color: #fff;
   border-color: #005BAC;
   font-weight: 600;
   box-shadow: 0 2px 4px rgba(0, 91, 172, 0.2);
-}
-
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  background: #F3F4F6;
-  border-color: #E5E7EB;
-  color: #9CA3AF;
-}
-
-.nav-btn {
-  color: #6B7280;
-}
-
-@media (max-width: 768px) {
-  .pagination-bar {
-    flex-direction: column;
-    gap: 12px;
-  }
 }
 </style>
