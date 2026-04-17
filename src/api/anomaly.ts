@@ -33,6 +33,24 @@ export interface DashboardOverviewResponse {
   ai_summary_hint?: string
 }
 
+export interface EnergyAnomalySeverityStats {
+  total: number
+  high: number
+  medium: number
+  low: number
+}
+
+export interface EnergyAnomalyListResponse {
+  time_range: TimeRange
+  items: AnomalySummary[]
+  pagination: {
+    page: number
+    page_size: number
+    total: number
+  }
+  severity_stats: EnergyAnomalySeverityStats
+}
+
 // ─── Types: Energy Anomaly Analysis ──────────────────────────────
 export interface EnergyAnomalyAnalysisRequest {
   building_id: string
@@ -330,6 +348,23 @@ export const getDashboardOverview = (params?: {
   return request.get<DashboardOverviewResponse>('/dashboard/overview', {
     params: { chart_range: 'week', ...params },
     timeout: 60000 // 大数据量分析后响应可能较慢
+  })
+}
+
+/** 获取异常事件列表 */
+export const getEnergyAnomalies = (params?: {
+  start_time?: string
+  end_time?: string
+  site_id?: string
+  building_id?: string
+  meter?: string
+  severity?: 'high' | 'medium' | 'low'
+  page?: number
+  page_size?: number
+}) => {
+  return request.get<EnergyAnomalyListResponse>('/energy/anomalies', {
+    params: { page: 1, page_size: 10, ...params },
+    timeout: 60000
   })
 }
 

@@ -1,14 +1,14 @@
-import { ref, reactive, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { useAnomalyTaskStore } from '../../store/anomalyTask'
 import {
   triggerDetection,
-  getDashboardOverview,
+  getEnergyAnomalies,
   getAnomalyAnalysis,
   aiAnalyzeAnomaly,
   submitAnomalyFeedback,
   type AnomalySummary,
-  type DashboardOverviewResponse,
+  type EnergyAnomalyListResponse,
   type EnergyAnomalyAnalysisResponse,
   type AIAnalyzeAnomalyResponse,
   type AnomalyFeedbackResponse,
@@ -16,6 +16,8 @@ import {
 } from '../../api/anomaly'
 
 export type ChartRange = 'day' | 'week' | 'month'
+
+const DEFAULT_PAGINATION = { page: 1, page_size: 10, total: 0 }
 
 export function useFaultAnalysis() {
   const { 
@@ -57,33 +59,55 @@ export function useFaultAnalysis() {
   /** 切换范围并自动重新拉取 */
   const setChartRange = (range: ChartRange) => {
     chartRange.value = range
-    fetchOverview()
+    loadOverview(1)
   }
 
   // ─── 概览数据 ──────────────────────────────────────
   const overviewLoading = ref(false)
   const overviewError = ref('')
-  const overview = ref<DashboardOverviewResponse | null>(null)
-  const anomalyList = computed(() => overview.value?.top_anomalies ?? [])
+  const overview = ref<EnergyAnomalyListResponse | null>(null)
+  const anomalyList = computed(() => overview.value?.items ?? [])
+  const pagination = computed(() => overview.value?.pagination ?? DEFAULT_PAGINATION)
+  const totalPages = computed(() => Math.max(1, Math.ceil(pagination.value.total / pagination.value.page_size)))
 
-  const fetchOverview = async () => {
+  const loadOverview = async (page = pagination.value.page) => {
     if (overviewLoading.value) return
     overviewLoading.value = true
     overviewError.value = ''
     try {
       const { start_time, end_time } = getTimeRange()
-      const res = await getDashboardOverview({
+      const res = await getEnergyAnomalies({
         start_time,
         end_time,
-        chart_range: chartRange.value
+        page,
+        page_size: pagination.value.page_size
       }) as any
       overview.value = res
+
+      if (selectedAnomaly.value) {
+        const matched = res?.items?.find((item: AnomalySummary) => item.anomaly_id === selectedAnomaly.value?.anomaly_id)
+        if (matched) {
+          selectedAnomaly.value = matched
+        } else {
+          clearSelection()
+        }
+      }
     } catch (err: any) {
       console.error('获取异常总览失败:', err)
       overviewError.value = err?.response?.data?.detail || err?.message || '获取数据失败'
     } finally {
       overviewLoading.value = false
     }
+  }
+
+  const fetchOverview = async () => {
+    await loadOverview(pagination.value.page)
+  }
+
+  const changePage = (page: number) => {
+    if (overviewLoading.value) return
+    if (page < 1 || page > totalPages.value) return
+    loadOverview(page)
   }
 
   // ─── 检测触发 & SSE 进度 ───────────────────────────
@@ -226,8 +250,8 @@ export function useFaultAnalysis() {
       feedbackResult.value = res
 
       // 核心修复：反馈成功后同步更新列表状态，实现全站联动
-      if (overview.value?.top_anomalies && selectedAnomaly.value) {
-        const target = overview.value.top_anomalies.find(
+      if (overview.value?.items && selectedAnomaly.value) {
+        const target = overview.value.items.find(
           a => a.anomaly_id === selectedAnomaly.value!.anomaly_id
         )
         if (target) {
@@ -251,6 +275,10 @@ export function useFaultAnalysis() {
 
   // ─── 统计计算 ─────────────────────────────────────
   const severityStats = computed(() => {
+    const stats = overview.value?.severity_stats
+    if (stats) {
+      return stats
+    }
     const list = anomalyList.value
     return {
       total: list.length,
@@ -269,7 +297,10 @@ export function useFaultAnalysis() {
     overviewError,
     overview,
     anomalyList,
+    pagination,
+    totalPages,
     fetchOverview,
+    changePage,
     // 检测
     detecting,
     detectProgress,
