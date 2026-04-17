@@ -41,6 +41,7 @@
             <option value="normal">正常</option>
             <option value="error">异常</option>
             <option value="warning">告警</option>
+            <option value="offline">离线</option>
           </select>
         </div>
 
