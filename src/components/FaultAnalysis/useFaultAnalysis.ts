@@ -42,6 +42,11 @@ const loadCachedAIStateMap = (): Record<string, CachedAIState> => {
   }
 }
 
+const toFeedbackScore = (confidence: number) => {
+  const normalized = Number.isFinite(confidence) ? confidence : 0
+  return Math.max(1, Math.min(5, Math.round(normalized * 4) + 1))
+}
+
 export function useFaultAnalysis() {
   const { 
     detecting, 
@@ -375,13 +380,15 @@ export function useFaultAnalysis() {
         meter: detailData.value.meter,
         time_range: detailData.value.time_range,
         selected_cause_id: selectedCause.value.cause_id,
-        selected_score: Math.round(selectedCause.value.confidence * 100),
+        selected_score: toFeedbackScore(selectedCause.value.confidence),
         selected_cause_title: selectedCause.value.title,
-        candidate_feedbacks: aiResult.value.candidate_causes.map(c => ({
-          cause_id: c.cause_id,
-          score: c.cause_id === selectedCause.value!.cause_id ? Math.round(c.confidence * 100) : 0,
-          title: c.title
-        })),
+        candidate_feedbacks: [
+          {
+            cause_id: selectedCause.value.cause_id,
+            score: toFeedbackScore(selectedCause.value.confidence),
+            title: selectedCause.value.title
+          }
+        ],
         comment: feedbackComment.value || undefined,
         resolution_status: 'confirmed',
         model_name: aiResult.value.meta?.model,
