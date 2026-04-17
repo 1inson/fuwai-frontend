@@ -319,6 +319,18 @@ export interface ReportDetailResponse {
     data?: ReportDetailData
 }
 
+export interface ReportSummaryRequest {
+    report_id: string
+}
+
+export interface ReportSummaryResponse {
+    report_id?: string
+    summary?: string
+    ai_summary?: string
+    status?: string
+    [key: string]: any
+}
+
 /** 1. 创建报表生成任务 */
 export const generateReport = (data: GenerateReportRequest) => {
     return request.post<GenerateReportResponse>('/reports/generate', data, {
@@ -338,8 +350,14 @@ export const getReportStatus = (reportId: string) => {
 /** 2.5 获取报表详情（含 AI 摘要和结构化数据，用于前端预览） */
 export const getReportDetail = (reportId: string) => {
     return request.get<ReportDetailResponse>(`/reports/${reportId}`, {
-        params: { detail: true },
         timeout: 30000
+    })
+}
+
+/** 2.6 对已有报表进行 AI 分析 */
+export const summarizeReport = (data: ReportSummaryRequest) => {
+    return request.post<ReportSummaryResponse>('/ai/report-summary', data, {
+        timeout: 120000
     })
 }
 
