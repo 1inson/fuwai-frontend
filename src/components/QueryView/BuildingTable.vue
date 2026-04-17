@@ -303,31 +303,46 @@ const fetchBuildings = async () => {
   loading.value = true
   
   try {
-    // 第一步：获取建筑基础列表（分页）
+    console.log('正在请求建筑列表，页码:', pagination.value.currentPage)
+    
     const buildingsRes = await axios.get('/api/buildings', {
       params: {
         page: pagination.value.currentPage,
-        page_size: pagination.value.pageSize,  // 7条每页
+        page_size: pagination.value.pageSize,
         status: props.filterForm?.status || undefined,
         building_id: props.advancedFilters?.buildingId || undefined,
         site: props.advancedFilters?.site || undefined,
         sort_field: props.sortConfig?.field || undefined,
         sort_order: props.sortConfig?.order || undefined
       },
-      timeout: 10000  // 10秒超时
+      timeout: 10000
     })
     
-    // 安全获取建筑列表（防御性处理）
+    console.log('建筑列表原始返回:', buildingsRes.data)
+    
+    // 安全获取建筑列表
     const buildingList = safeGetArray(buildingsRes.data)
     
-    // 获取总数（支持多种可能的字段名）
-    pagination.value.total = buildingsRes.data?.total || buildingsRes.data?.total_count || buildingsRes.data?.meta?.total || 0
+    // 安全获取总数（支持多种可能的字段名）
+    const returnedTotal = buildingsRes.data?.total ?? 
+                          buildingsRes.data?.total_count ?? 
+                          buildingsRes.data?.meta?.total ??
+                          buildingsRes.data?.pagination?.total
+    
+    console.log('解析到的总数:', returnedTotal, '列表长度:', buildingList.length)
+    
+    // 如果后端返回了有效的total，使用它；否则用当前返回的数据长度
+    pagination.value.total = returnedTotal !== undefined && returnedTotal !== null 
+      ? returnedTotal 
+      : buildingList.length
     
     if (!buildingList.length) {
       buildings.value = []
       loading.value = false
       return
     }
+    // ... 后续处理不变
+
 
     // 第二步：为每个建筑获取详细数据（并行）
     const detailedBuildings = await Promise.all(
@@ -494,9 +509,11 @@ const displayStart = computed(() => {
 })
 
 const displayEnd = computed(() => {
-  if (pagination.value.total === 0) return 0
+  if (pagination.value.total === 0 && buildings.value.length === 0) return 0
+  // 如果没有总数（可能后端没返回），用当前实际显示的数据条数
+  const effectiveTotal = pagination.value.total || buildings.value.length
   const end = pagination.value.currentPage * pagination.value.pageSize
-  return Math.min(end, pagination.value.total)
+  return Math.min(end, effectiveTotal)
 })
 
 // 可见页码（最多显示5个）
