@@ -5,6 +5,16 @@
       <table class="data-table">
         <thead>
           <tr>
+            <!-- 导出模式显示全选框 -->
+            <th v-if="isExportMode" class="checkbox-column">
+              <input 
+                type="checkbox" 
+                :checked="isAllSelected"
+                :indeterminate="isIndeterminate"
+                @change="toggleSelectAll"
+                class="custom-checkbox"
+              />
+            </th>
             <th>建筑标识ID</th>
             <th>设备</th>
             <th class="text-right">总能耗</th>
@@ -16,7 +26,7 @@
         </thead>
         <tbody>
           <tr v-if="loading" class="loading-row">
-            <td colspan="7" class="loading-cell">
+            <td :colspan="isExportMode ? 8 : 7" class="loading-cell">
               <div class="loading-content">
                 <div class="loading-spinner"></div>
                 <span>数据加载中...</span>
@@ -24,7 +34,7 @@
             </td>
           </tr>
           <tr v-else-if="buildings.length === 0" class="empty-row">
-            <td colspan="7" class="empty-cell">
+            <td :colspan="isExportMode ? 8 : 7" class="empty-cell">
               <div class="empty-content">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="2">
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -36,7 +46,17 @@
               </div>
             </td>
           </tr>
-          <tr v-else v-for="item in buildings" :key="item.id">
+          <tr v-else v-for="item in buildings" :key="item.id" :class="{ 'selected-row': isExportMode && selectedIds.has(item.id) }">
+            <!-- 导出模式显示多选框 -->
+            <td v-if="isExportMode" class="checkbox-column">
+              <input 
+                type="checkbox" 
+                :value="item.id"
+                :checked="selectedIds.has(item.id)"
+                @change="toggleSelection(item.id)"
+                class="custom-checkbox"
+              />
+            </td>
             <td>
               <div class="building-id">{{ item.buildingId }}</div>
             </td>
@@ -50,22 +70,20 @@
             <td class="text-right">{{ item.eui }}</td>
             <td class="text-right">{{ item.carbon }}</td>
             <td class="text-center">
-              <span :class="['status-tag', item.status]">
+              <!-- 复用参考代码的状态标签样式 -->
+              <span class="status-badge" :class="getStatusClass(item.status)">
                 <span class="dot"></span>
                 {{ item.statusText }}
               </span>
             </td>
             <td class="text-right">
               <div class="actions">
-                <!-- 蓝色查看 -->
                 <button class="action-btn blue" @click="handleView(item)" title="查看详情">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                     <circle cx="12" cy="12" r="3"></circle>
                   </svg>
                 </button>
-                
-                <!-- 绿色统计 -->
                 <button class="action-btn green" @click="handleStats(item)" title="统计数据">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -73,8 +91,6 @@
                     <line x1="6" y1="20" x2="6" y2="14"></line>
                   </svg>
                 </button>
-                
-                <!-- 橙色故障 -->
                 <button class="action-btn orange" @click="handleFault(item)" title="故障分析">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
@@ -88,48 +104,39 @@
         </tbody>
       </table>
 
-      <!-- 分页栏：添加导出按钮 -->
+      <!-- 分页栏 -->
       <div class="pagination-bar">
         <div class="pagination-info">
-          显示第 {{ displayStart }}-{{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行记录
+          <template v-if="isExportMode">
+            已选择 <strong>{{ selectedIds.size }}</strong> 个建筑
+            <button class="cancel-btn" @click="cancelExport">取消</button>
+          </template>
+          <template v-else>
+            显示第 {{ displayStart }}-{{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行记录
+          </template>
         </div>
         
         <div class="pagination-right">
-          <!-- 导出按钮 -->
-          <button class="export-btn" @click="handleExport" :disabled="loading || buildings.length === 0">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
+          <!-- 导出模式显示确认导出按钮 -->
+          <button v-if="isExportMode" class="confirm-export-btn" :disabled="selectedIds.size === 0" @click="confirmExport">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+              <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
-            导出运行数据
+            确认导出
           </button>
 
           <div class="pagination-controls">
-            <button 
-              class="page-btn nav-btn" 
-              :disabled="pagination.currentPage === 1"
-              @click="onPageChange(pagination.currentPage - 1)"
-            >
+            <button class="page-btn nav-btn" :disabled="pagination.currentPage === 1" @click="onPageChange(pagination.currentPage - 1)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
             </button>
 
-            <button 
-              v-for="page in visiblePages" 
-              :key="page"
-              :class="['page-btn', { active: page === pagination.currentPage }]"
-              @click="onPageChange(page)"
-            >
+            <button v-for="page in visiblePages" :key="page" :class="['page-btn', { active: page === pagination.currentPage }]" @click="onPageChange(page)">
               {{ page }}
             </button>
 
-            <button 
-              class="page-btn nav-btn" 
-              :disabled="pagination.currentPage === totalPages"
-              @click="onPageChange(pagination.currentPage + 1)"
-            >
+            <button class="page-btn nav-btn" :disabled="pagination.currentPage === totalPages" @click="onPageChange(pagination.currentPage + 1)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
@@ -178,12 +185,17 @@ const buildings = ref<TableItem[]>([])
 const pagination = ref<PaginationInfo>({ currentPage: 1, pageSize: 7, total: 0 })
 const loading = ref(false)
 
+// 导出模式相关
+const isExportMode = ref(false)
+const selectedIds = ref<Set<string>>(new Set())
+
 // ===== 工具函数 =====
 import { useTimeManager } from '../../utils/timeManager'
 const { getCurrentTimeString } = useTimeManager()
 
 const getCurrentTime = () => new Date(getCurrentTimeString())
 
+// 状态文本映射（保持原有建筑状态描述）
 const getStatusText = (status: string): string => {
   const map: Record<string, string> = {
     'normal': '运行正常',
@@ -192,6 +204,17 @@ const getStatusText = (status: string): string => {
     'offline': '离线'
   }
   return map[status] || status || '运行正常'
+}
+
+// 状态类映射：将内部状态值映射到参考代码的样式类
+const getStatusClass = (status: string): string => {
+  const classMap: Record<string, string> = {
+    'normal': 'online',    // 运行正常 -> 绿色(online样式)
+    'warning': 'warning',  // 告警状态 -> 黄色(warning样式)
+    'error': 'fault',      // 异常状态 -> 红色(fault样式)
+    'offline': 'offline'   // 离线 -> 灰色(offline样式)
+  }
+  return classMap[status] || status
 }
 
 const safeGetArray = (data: any): any[] => {
@@ -383,6 +406,44 @@ const fetchBuildings = async () => {
   }
 }
 
+// ===== 导出模式方法 =====
+const enterExportMode = () => {
+  isExportMode.value = true
+  selectedIds.value.clear()
+}
+
+const cancelExport = () => {
+  isExportMode.value = false
+  selectedIds.value.clear()
+}
+
+const toggleSelection = (id: string) => {
+  if (selectedIds.value.has(id)) {
+    selectedIds.value.delete(id)
+  } else {
+    selectedIds.value.add(id)
+  }
+  selectedIds.value = new Set(selectedIds.value)
+}
+
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    selectedIds.value.clear()
+  } else {
+    buildings.value.forEach(item => selectedIds.value.add(item.id))
+  }
+  selectedIds.value = new Set(selectedIds.value)
+}
+
+const confirmExport = () => {
+  const selectedData = buildings.value.filter(item => selectedIds.value.has(item.id))
+  emit('export-data', {
+    data: selectedData,
+    ids: Array.from(selectedIds.value),
+    allData: false
+  })
+}
+
 // ===== 事件处理 =====
 const handleView = (item: TableItem) => {
   emit('view-detail', item)
@@ -394,25 +455,6 @@ const handleStats = (item: TableItem) => {
 
 const handleFault = (item: TableItem) => {
   emit('fault-analysis', item)
-}
-
-// 导出数据逻辑
-const handleExport = async () => {
-  try {
-    // 触发导出事件，让父组件处理或自行处理
-    emit('export-data', {
-      data: buildings.value,
-      pagination: pagination.value,
-      timeRange: props.timeRange
-    })
-    
-    // 或者自行处理下载逻辑：
-    // const csvContent = convertToCSV(buildings.value)
-    // downloadFile(csvContent, `建筑运行数据_${new Date().toLocaleDateString()}.csv`, 'text/csv')
-    
-  } catch (error) {
-    console.error('导出数据失败:', error)
-  }
 }
 
 // ===== 计算属性 =====
@@ -435,6 +477,14 @@ const visiblePages = computed(() => {
   return pages
 })
 
+const isAllSelected = computed(() => {
+  return buildings.value.length > 0 && buildings.value.every(item => selectedIds.value.has(item.id))
+})
+
+const isIndeterminate = computed(() => {
+  return selectedIds.value.size > 0 && selectedIds.value.size < buildings.value.length
+})
+
 // ===== 生命周期 & 监听 =====
 onMounted(() => { fetchBuildings() })
 
@@ -453,6 +503,11 @@ const onPageChange = (page: number) => {
   if (page < 1 || page > totalPages.value) return
   pagination.value.currentPage = page
 }
+
+// 暴露方法给父组件调用
+defineExpose({
+  enterExportMode
+})
 </script>
 
 <style scoped>
@@ -480,8 +535,8 @@ th {
   padding: 12px 16px;
   text-align: left;
   font-size: 12px;
-  font-weight: 500;
-  color: #6B7280;
+  font-weight: 600;
+  color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   border-bottom: 1px solid #E5E7EB;
@@ -497,6 +552,25 @@ td {
 
 tr:hover {
   background: #F9FAFB;
+}
+
+/* 选中行样式 */
+.selected-row {
+  background: #EFF6FF !important;
+}
+
+/* 复选框列样式 */
+.checkbox-column {
+  width: 40px;
+  text-align: center;
+  padding: 12px 8px;
+}
+
+.custom-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #005BAC;
 }
 
 .text-right {
@@ -533,51 +607,51 @@ tr:hover {
   margin-top: 2px;
 }
 
-/* ===== 状态标签（完全对齐参考代码）===== */
-.status-tag {
+/* ===== 状态标签（复用参考代码的 status-badge 样式） ===== */
+.status-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 20px;
   font-size: 12px;
-  font-weight: 500;
-  border: 1px solid transparent;
-  white-space: nowrap;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #f1f5f9;
+  color: #64748b;
 }
 
-.status-tag.normal {
-  background: #F0FDF4;
-  color: #16A34A;
-  border-color: #DCFCE7;
-}
-
-.status-tag.warning {
-  background: #FFFBEB;
-  color: #D97706;
-  border-color: #FEF3C7;
-}
-
-.status-tag.error {
-  background: #FEF2F2;
-  color: #DC2626;
-  border-color: #FEE2E2;
-}
-
-.status-tag.offline {
-  background: #F3F4F6;
-  color: #6B7280;
-  border-color: #E5E7EB;
-}
-
-.status-tag .dot {
+.status-badge .dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
 }
 
-/* ===== 操作按钮（完全采用参考代码的class命名和配色）===== */
+/* 运行正常 - 绿色（对应参考代码的 online） */
+.status-badge.online {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+/* 告警状态 - 黄色（对应参考代码的 warning） */
+.status-badge.warning {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+/* 异常状态 - 红色（对应参考代码的 fault） */
+.status-badge.fault {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* 离线 - 灰色（对应参考代码的 offline） */
+.status-badge.offline {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+/* ===== 操作按钮 ===== */
 .actions {
   display: flex;
   gap: 8px;
@@ -598,7 +672,6 @@ tr:hover {
   transition: all 0.2s ease;
 }
 
-/* 蓝色 - 查看 */
 .action-btn.blue {
   color: #005BAC;
   border-color: #BFDBFE;
@@ -609,7 +682,6 @@ tr:hover {
   transform: scale(1.05);
 }
 
-/* 绿色 - 统计 */
 .action-btn.green {
   color: #27AE60;
   border-color: #BBF7D0;
@@ -620,7 +692,6 @@ tr:hover {
   transform: scale(1.05);
 }
 
-/* 橙色 - 故障 */
 .action-btn.orange {
   color: #F39C12;
   border-color: #FDE68A;
@@ -676,7 +747,7 @@ tr:hover {
   font-size: 14px;
 }
 
-/* ===== 分页栏（完全采用参考代码的样式结构）===== */
+/* ===== 分页栏 ===== */
 .pagination-bar {
   display: flex;
   justify-content: space-between;
@@ -690,40 +761,65 @@ tr:hover {
   font-size: 14px;
   color: #6B7280;
   font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pagination-info strong {
+  color: #005BAC;
+  font-weight: 600;
+}
+
+/* 取消按钮 */
+.cancel-btn {
+  padding: 6px 12px;
+  border: 1px solid #E5E7EB;
+  background: #fff;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #6B7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cancel-btn:hover {
+  border-color: #DC2626;
+  color: #DC2626;
+  background: #FEF2F2;
+}
+
+/* 确认导出按钮 */
+.confirm-export-btn {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  border: none;
+  background: #52C41A;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+  margin-right: 12px;
+}
+
+.confirm-export-btn:hover:not(:disabled) {
+  background: #389E0D;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(82, 196, 26, 0.3);
+}
+
+.confirm-export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #9CA3AF;
 }
 
 .pagination-right {
   display: flex;
   align-items: center;
-  gap: 16px;
-}
-
-/* 导出按钮 */
-.export-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid #E5E7EB;
-  background: #FFFFFF;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #374151;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 500;
-}
-
-.export-btn:hover:not(:disabled) {
-  border-color: #005BAC;
-  color: #005BAC;
-  background: #F5F7FA;
-}
-
-.export-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: #F9FAFB;
 }
 
 /* 分页控制 */
