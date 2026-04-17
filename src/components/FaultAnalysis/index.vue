@@ -207,7 +207,6 @@ onMounted(() => {
   gap: 20px;
   height: 100%;
   box-sizing: border-box;
-  overflow-y: auto;
 }
 
 /* Header */
@@ -217,6 +216,7 @@ onMounted(() => {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+  flex-shrink: 0;
 }
 .header-left { display: flex; flex-direction: column; gap: 2px; }
 .page-title {
@@ -327,6 +327,7 @@ onMounted(() => {
   color: #dc2626;
   font-size: 13px;
   font-weight: 500;
+  flex-shrink: 0;
 }
 .de-icon { font-size: 16px; display: flex; }
 
@@ -335,13 +336,15 @@ onMounted(() => {
   display: flex;
   gap: 20px;
   flex: 1;
-  min-height: 0;
+  min-height: 500px; /* 保证至少有 5 条左右信息的高度展示空间，防止在短窗口下被过度压缩 */
 }
 
 .list-column {
   flex: 1;
   min-width: 0;
   transition: flex 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 .list-column.shrink {
   flex: 0 0 380px;
@@ -351,7 +354,8 @@ onMounted(() => {
 .detail-column {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   animation: detailFadeIn 0.3s ease;
 }
 @keyframes detailFadeIn {
@@ -391,15 +395,23 @@ onMounted(() => {
 }
 
 @media (max-width: 900px) {
+  .fault-analysis-page {
+    height: auto;
+    min-height: 100%;
+    padding: 16px;
+  }
   .main-area {
     flex-direction: column;
+    flex: none;
+    min-height: auto;
   }
   .list-column.shrink {
     flex: none;
     max-width: none;
   }
-  .fault-analysis-page {
-    padding: 16px;
+  .detail-column {
+    flex: none;
+    min-height: auto;
   }
 }
 </style>
