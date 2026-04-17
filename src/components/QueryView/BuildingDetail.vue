@@ -597,6 +597,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios'; // 新增：引入axios
+import { usePageAIContext } from '../../composables/useAIContext';
 import { getCurrentTimeString } from '@/utils/timeManager';
 // 新增：导入弹窗组件
 import TimeFilterModal from './TimeFilterModal.vue';
@@ -606,6 +607,9 @@ const route = useRoute();
 const router = useRouter();
 
 const buildingId = computed(() => route.params.id as string || 'BLDG-HQ-A01');
+usePageAIContext('building-detail', computed(() => ({
+  building_id: buildingId.value
+})));
 
 // 新增：能耗类别（可切换）
 const energyCategory = ref('电力'); // 默认电力

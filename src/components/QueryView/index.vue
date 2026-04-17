@@ -196,7 +196,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
 import FilterModal from './FilterModal.vue';
@@ -348,7 +348,13 @@ const clearAllAdvancedFilters = () => {
 
 const handleView = (item: BuildingItem) => router.push(`/building/${item.buildingId}`);
 const handleSuggest = (item: BuildingItem) => console.log('减排建议:', item.buildingId);
-const handleFault = (item: BuildingItem) => console.log('故障查询:', item.buildingId);
+const handleFault = (item: BuildingItem) => router.push({
+  path: '/fault-analysis',
+  query: {
+    building_id: item.buildingId,
+    meter: 'electricity'
+  }
+});
 
 // 调用后端接口获取高亮事项数据
 const fetchHighlights = async () => {
@@ -985,15 +991,6 @@ h1 {
   .card-header {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .ai-chat-popup {
-    width: calc(100vw - 40px);
-    height: 60vh;
-    position: fixed;
-    bottom: 80px;
-    right: 20px;
-    left: 20px;
   }
 }
 </style>

@@ -16,6 +16,7 @@ export interface AnomalySummary {
   status: string
   title: string
   start_time: string
+  resolution_status?: string
 }
 
 export interface MetricCard {
@@ -169,6 +170,108 @@ export interface AIAnalyzeAnomalyResponse {
   meta: AIAnalyzeAnomalyMeta
 }
 
+// ─── Types: AI Ops Guide ─────────────────────────────────────────
+export interface OpsGuideIncidentRef {
+  incident_id?: string
+  message_id?: string
+}
+
+export interface OpsGuidePageContext {
+  source?: string
+  page_type?: string
+  current_chart_range?: string
+}
+
+export interface OpsGuideOperatorContext {
+  operator_id?: string
+  operator_name?: string
+}
+
+export interface OpsGuideAnomalySnapshot {
+  summary?: string
+  analysis_mode?: string
+  event_count?: number
+  detector_breakdown?: AnomalyDetectorBreakdownItem[]
+  event_ids?: string[]
+}
+
+export interface OpsGuideContext {
+  building_id: string
+  meter?: string
+  time_range?: TimeRange
+  incident_ref?: OpsGuideIncidentRef
+  page_context?: OpsGuidePageContext
+  operator_context?: OpsGuideOperatorContext
+  anomaly_snapshot?: OpsGuideAnomalySnapshot
+}
+
+export interface OpsGuideRequest {
+  question?: string
+  guide_mode?: 'standard_sop' | 'quick_check' | 'deep_diagnosis'
+  context?: OpsGuideContext
+  include_knowledge?: boolean
+  include_history?: boolean
+  include_actions?: boolean
+}
+
+export interface OpsGuideStep {
+  step_id: string
+  title: string
+  instruction: string
+  priority: string
+  expected_result: string
+  if_not_met: string
+}
+
+export interface OpsGuideEvidence {
+  source_type: string
+  source: string
+  snippet: string
+  score: number
+}
+
+export interface OpsGuideAction {
+  label: string
+  action_type: string
+  target: string
+}
+
+export interface OpsGuideApplicability {
+  applies_to: string[]
+  not_applies_to: string[]
+}
+
+export interface OpsGuideDiagnosisSnapshot {
+  analysis_mode?: string
+  event_count?: number
+  detector_breakdown?: AnomalyDetectorBreakdownItem[]
+  candidate_cause_titles?: string[]
+}
+
+export interface OpsGuideMeta {
+  generated_at: string
+  model: string
+  used_tools?: string[]
+  context_source?: string
+  knowledge_hits?: number
+  history_feedback_hits?: number
+  stage_timings_ms?: Record<string, number>
+}
+
+export interface OpsGuideResponse {
+  incident_id: string
+  status: string
+  summary: string
+  preconditions?: string[]
+  steps: OpsGuideStep[]
+  evidence?: OpsGuideEvidence[]
+  actions?: OpsGuideAction[]
+  risk_notice?: string[]
+  applicability?: OpsGuideApplicability
+  diagnosis_snapshot?: OpsGuideDiagnosisSnapshot
+  meta: OpsGuideMeta
+}
+
 // ─── Types: Anomaly Feedback ─────────────────────────────────────
 export interface CandidateFeedbackItem {
   cause_id: string
@@ -242,6 +345,122 @@ export const aiAnalyzeAnomaly = (data: AIAnalyzeAnomalyRequest) => {
   return request.post<AIAnalyzeAnomalyResponse>('/ai/analyze-anomaly', data, {
     timeout: 120000 // AI 分析需要较长超时
   })
+}
+
+/** AI 运维指导（普通 POST，保留兼容） */
+export const getOpsGuide = (data: OpsGuideRequest) => {
+  return request.post<OpsGuideResponse>('/ai/ops-guide', data, {
+    timeout: 300000
+  })
+}
+
+export interface OpsGuideSSEEvent {
+  event: string
+  data: any
+}
+
+export interface AIStatusResponse {
+  status: string
+  message?: string
+  progress?: number
+  current_tool?: string
+  [key: string]: any
+}
+
+export const getAIStatus = () => {
+  return request.get<AIStatusResponse>('/ai/status', {
+    timeout: 10000
+  })
+}
+
+export function connectOpsGuideStream(
+  data: OpsGuideRequest,
+  onEvent: (event: OpsGuideSSEEvent) => void,
+  onError?: (err: Error) => void,
+  onComplete?: (fullResult: OpsGuideResponse | null) => void
+): AbortController {
+  const controller = new AbortController()
+
+  const baseURL = '/api'
+  const url = `${baseURL}/ai/ops-guide`
+
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'text/event-stream'
+    },
+    body: JSON.stringify(data),
+    signal: controller.signal
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const errorText = await response.text()
+        let detail = errorText
+        try {
+          const errorJson = JSON.parse(errorText)
+          detail = errorJson.detail || errorJson.message || errorText
+        } catch {}
+        throw new Error(`HTTP ${response.status}: ${detail}`)
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null, SSE not supported')
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let fullResult: OpsGuideResponse | null = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        let currentEvent = ''
+        let currentData = ''
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            currentEvent = line.slice(6).trim()
+          } else if (line.startsWith('data:')) {
+            currentData = line.slice(5).trim()
+          } else if (line === '' && (currentEvent || currentData)) {
+            try {
+              const parsed = JSON.parse(currentData)
+              const sseEvent: OpsGuideSSEEvent = {
+                event: currentEvent || 'message',
+                data: parsed
+              }
+              onEvent(sseEvent)
+
+              if (currentEvent === 'complete' || currentEvent === 'done') {
+                fullResult = parsed
+              }
+            } catch {
+              onEvent({
+                event: currentEvent || 'message',
+                data: currentData
+              })
+            }
+            currentEvent = ''
+            currentData = ''
+          }
+        }
+      }
+
+      onComplete?.(fullResult)
+    })
+    .catch((err) => {
+      if (err.name === 'AbortError') return
+      onError?.(err)
+    })
+
+  return controller
 }
 
 /** 提交异常反馈 */

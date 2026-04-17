@@ -267,3 +267,95 @@ export const getBuildingEnergySummary = (buildingId: string, params?: BuildingEn
         timeout: 15000
     })
 }
+
+// ─── Types: Reports Integration ───────────────────────────────────
+
+export interface GenerateReportRequest {
+    report_type: 'daily_summary' | 'weekly_summary' | 'monthly_summary' | 'anomaly_report'
+    building_id?: string
+    time_range: TimeRange
+    include_ai_summary?: boolean
+}
+
+export interface GenerateReportResponse {
+    report_id: string
+    status: 'queued' | 'processing' | 'ready' | 'failed'
+}
+
+export interface ReportStatusResponse {
+    report_id: string
+    status: 'queued' | 'processing' | 'ready' | 'failed'
+    [key: string]: any
+}
+
+export interface ReportHourlyItem {
+    hour: string
+    total: number
+    peak: number
+    average: number
+}
+
+export interface ReportSummaryMetric {
+    key: string
+    label: string
+    value: number
+    unit?: string
+}
+
+export interface ReportDetailData {
+    hourly_data: ReportHourlyItem[]
+    summary_metrics: ReportSummaryMetric[]
+}
+
+export interface ReportDetailResponse {
+    report_id: string
+    report_type: string
+    status: 'queued' | 'processing' | 'ready' | 'failed'
+    building_id: string
+    time_range: TimeRange
+    created_at: string
+    completed_at?: string
+    ai_summary?: string
+    data?: ReportDetailData
+}
+
+/** 1. 创建报表生成任务 */
+export const generateReport = (data: GenerateReportRequest) => {
+    return request.post<GenerateReportResponse>('/reports/generate', data, {
+        // AI 总结和报表生成通常非常耗时，放宽至 120 秒
+        timeout: 120000
+    })
+}
+
+/** 2. 获取报表处理状态 (不下载文件流) */
+export const getReportStatus = (reportId: string) => {
+    return request.get<ReportStatusResponse>(`/reports/${reportId}`, {
+        params: { download: false },
+        timeout: 30000
+    })
+}
+
+/** 2.5 获取报表详情（含 AI 摘要和结构化数据，用于前端预览） */
+export const getReportDetail = (reportId: string) => {
+    return request.get<ReportDetailResponse>(`/reports/${reportId}`, {
+        params: { detail: true },
+        timeout: 30000
+    })
+}
+
+/** 3. 当准备就绪后，直接获取文件流进行下载 */
+export const downloadReport = (reportId: string, format: string = 'md') => {
+    return request.get(`/reports/${reportId}`, {
+        params: { download: true, format },
+        responseType: 'blob', // 关键点：将响应体作为 Blob 读取，以便用于前端下载
+        // 下载文件流同样需要充分时间，特别是处于外网或文件较大时
+        timeout: 120000
+    })
+}
+
+/** 4. 删除暂存的报表 */
+export const deleteReport = (reportId: string) => {
+    return request.delete(`/reports/${reportId}`, {
+        timeout: 10000
+    })
+}

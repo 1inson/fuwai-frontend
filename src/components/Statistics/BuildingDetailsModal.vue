@@ -78,16 +78,28 @@
             </table>
           </div>
         </div>
+
       </div>
+
+      <AIOpsGuidePanel
+        v-model:visible="showOpsPanel"
+        :buildingId="buildingId"
+        :selectedDay="selectedDay"
+      />
 
       <!-- 模态框底部 -->
       <div class="modal-footer">
         <button class="btn btn-default" @click="close">返回</button>
-        <button class="btn btn-primary" @click="exportData">
-          一键统计分析 
+        <button class="btn btn-primary" @click="openOpsPanel">
+          <Icon icon="lucide:bot" class="mr-1" />
+          AI 运维分析
         </button>
-        <button class="btn btn-primary btn-icon">
-          导出数据 <Icon icon="lucide:external-link" class="ml-1" />
+        <button class="btn btn-primary btn-icon" @click="exportMarkdown" :disabled="exporting">
+          <Icon v-if="exporting" icon="lucide:loader-2" class="spin mr-1" />
+          <span v-if="exporting">导出中...</span>
+          <template v-else>
+            导出数据 <Icon icon="lucide:download" class="ml-1" />
+          </template>
         </button>
       </div>
     </div>
@@ -98,7 +110,12 @@
 import { ref, watch, computed } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
-import { getBuildingById, type BuildingDetailResponse, getBuildingEnergySummary } from '../../api/statistics'
+import { 
+  getBuildingById, 
+  type BuildingDetailResponse, 
+  getBuildingEnergySummary
+} from '../../api/statistics'
+import AIOpsGuidePanel from './AIOpsGuidePanel.vue'
 
 const props = defineProps<{
   visible: boolean
@@ -115,11 +132,13 @@ const anomalyCount = ref(0)
 const hourlyData = ref<{ hour: string; total: number; peak: number; average: number }[]>([])
 const hourlyLoading = ref(false)
 
+const exporting = ref(false)
+const showOpsPanel = ref(false)
+
 const selectedDay = ref('')
 
 watch(() => props.startTime, (v) => {
   if (v) {
-    // 简单截取或解析 yyyy-mm-dd
     const safeStr = v.replace(/-/g, '/')
     const d = new Date(safeStr)
     if (!isNaN(d.getTime())) {
@@ -135,18 +154,78 @@ const close = () => {
   emit('update:visible', false)
 }
 
-const exportData = () => {
-  alert('导出功能开发中...')
+const openOpsPanel = () => {
+  showOpsPanel.value = true
 }
 
-const viewDetailAction = (item: any) => {
-  alert(`功能开发中: 查看 ${formatTime(item.timestamp)} 时刻的明细`)
-}
+const exportMarkdown = () => {
+  if (!detailData.value && hourlyData.value.length === 0) {
+    alert('暂无数据可导出')
+    return
+  }
+  exporting.value = true
 
-const formatTime = (ts: string) => {
-  if (!ts) return ''
-  const d = new Date(ts)
-  return `${String(d.getHours()).padStart(2,'0')}:00`
+  try {
+    const building = detailData.value?.building
+    const metrics = displayMetrics.value
+    const lines: string[] = []
+
+    lines.push(`# 建筑详情报表 - ${props.buildingId}`)
+    lines.push('')
+    lines.push(`> 导出时间: ${new Date().toLocaleString('zh-CN')}`)
+    lines.push(`> 数据日期: ${selectedDay.value}`)
+    lines.push('')
+
+    lines.push('## 基本资料')
+    lines.push('')
+    lines.push('| 指标 | 值 |')
+    lines.push('|------|-----|')
+    for (const m of metrics) {
+      const val = m.unit ? `${m.value.toLocaleString()} ${m.unit}` : m.value.toLocaleString()
+      lines.push(`| ${m.label} | ${val} |`)
+    }
+    lines.push('')
+
+    if (hourlyData.value.length > 0) {
+      lines.push('## 小时级多维监控数据')
+      lines.push('')
+      lines.push('| 时间 | 总能耗 (KWH) | 峰值 (KW) | 平均 (KWH) |')
+      lines.push('|------|-------------|-----------|-----------|')
+      for (const item of hourlyData.value) {
+        lines.push(`| ${item.hour} | ${formatNumber(item.total)} | ${formatNumber(item.peak)} | ${formatNumber(item.average)} |`)
+      }
+      lines.push('')
+    }
+
+    const meters = displayMeters.value
+    const hasAnyMeter = meters.some(m => m.available)
+    if (hasAnyMeter) {
+      lines.push('## 监控表计')
+      lines.push('')
+      lines.push('| 表计类型 | 可用 |')
+      lines.push('|---------|------|')
+      for (const m of meters) {
+        lines.push(`| ${formatMeterName(m.meter)} | ${m.available ? '✅' : '❌'} |`)
+      }
+      lines.push('')
+    }
+
+    const mdContent = lines.join('\n')
+    const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `building_${props.buildingId}_${selectedDay.value}.md`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  } catch (err: any) {
+    alert('导出失败: ' + (err.message || '未知错误'))
+    console.error(err)
+  } finally {
+    exporting.value = false
+  }
 }
 
 const formatNumber = (val: number | null | undefined): string => {
@@ -160,7 +239,6 @@ const fetchHourlyOnly = async () => {
   hourlyData.value = []
 
   try {
-    // 并发调用 24 次，每次查询一个小时的摘要
     const promises = Array.from({ length: 24 }, (_, i) => {
       const hh = String(i).padStart(2, '0')
       const startStr = `${selectedDay.value}T${hh}:00:00`
@@ -222,13 +300,10 @@ watch(
   }
 )
 
-// -- Computed Mappings --
-
 const displayMetrics = computed(() => {
   const metrics = detailData.value?.summary_metrics || []
   const building = detailData.value?.building
   
-  // 按照设计稿补充一些建筑基本信息
   const fullList = [
     { key: 'usage', label: '建筑主要用途', value: building?.primaryspaceusage || '—', unit: '' },
     { key: 'sqm', label: '总面积', value: building?.sqm || 0, unit: 'm²' },
@@ -239,7 +314,6 @@ const displayMetrics = computed(() => {
 
 const displayMeters = computed(() => {
   const meters = detailData.value?.meters || []
-  // Ensure we see exactly the ones like in the design mockup or the real DB
   const standardMeters = ['hotwater', 'chilledwater', 'irrigation', 'solar', 'gas', 'electricity']
   return standardMeters.map(sm => {
     const found = meters.find(m => m.meter === sm)
@@ -274,7 +348,6 @@ function getMeterColor(name: string) {
 }
 
 function getMockPct(name: string) {
-  // Mock logic to show percentages like the mockup
   const pct: Record<string, string> = {
     electricity: '60.0',
     hotwater: '10.0',
@@ -312,6 +385,7 @@ function getMockPct(name: string) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
   font-family: 'Plus Jakarta Sans', -apple-system, 'PingFang SC', sans-serif;
 }
 
@@ -636,6 +710,7 @@ function getMockPct(name: string) {
 
 /* Common */
 .ml-1 { margin-left: 4px; }
+.mr-1 { margin-right: 4px; }
 .loading-state {
   display: flex;
   flex-direction: column;
@@ -652,4 +727,12 @@ function getMockPct(name: string) {
 }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
+.font-numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 </style>
