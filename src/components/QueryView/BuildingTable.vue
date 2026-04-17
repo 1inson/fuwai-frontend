@@ -72,13 +72,16 @@
         </tbody>
       </table>
 
-      <div class="pagination-controls">
-        <!-- 上一页 -->
-        <button 
-          class="page-btn nav-btn" 
-          :disabled="pagination.currentPage === 1"
-          @click="onPageChange(pagination.currentPage - 1)"
-        >
+      <div class="pagination-bar">
+        <div class="pagination-info">
+          显示 {{ displayStart }}-{{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行数据
+        </div>
+        <div class="pagination-controls">
+          <!-- 上一页 -->
+          <button 
+            class="page-btn nav-btn" 
+            :disabled="pagination.currentPage === 1"
+            @click="onPageChange(pagination.currentPage - 1)"  >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
@@ -104,6 +107,7 @@
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
         </button>
+        </div>
       </div>
     </div>
   </div>
@@ -174,8 +178,9 @@ const getCurrentTime = () => {
 const getStatusText = (status: string): string => {
   const map: Record<string, string> = {
     'normal': '运行正常',
-    'warning': '告警',
-    'error': '异常'
+    'warning': '告警状态',
+    'error': '异常状态',
+    'offline': '离线'
   }
   return map[status] || '运行正常'
 }
@@ -281,8 +286,8 @@ const calculateTimeRange = (range: string) => {
 const fetchBuildings = async () => {
   loading.value = true
   try {
-    // 第一步：获取建筑基础列表（ID、站点、状态）
-    const response = await axios.get('/api/meters', {
+    // 获取建筑列表
+    const response = await axios.get('/api/buildings', {
       params: {
         page: pagination.value.currentPage,
         page_size: pagination.value.pageSize,
@@ -327,7 +332,25 @@ const fetchBuildings = async () => {
       })
     )
     
+        // 如果按系统状态排序，按业务规则：异常 > 告警 > 离线 > 正常
+    if (props.sortConfig?.field === 'status') {
+      const statusWeight: Record<string, number> = {
+        'error': 4,
+        'warning': 3,
+        'offline': 2,
+        'normal': 1
+      }
+      detailedBuildings.sort((a, b) => {
+        const weightA = statusWeight[a.status] || 0
+        const weightB = statusWeight[b.status] || 0
+        return props.sortConfig!.order === 'asc' 
+          ? weightA - weightB 
+          : weightB - weightA
+      })
+    }
+
     buildings.value = detailedBuildings
+
     
   } catch (error) {
     console.error('获取建筑列表失败:', error)
@@ -506,6 +529,12 @@ tr:hover {
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+}
+
+.status-tag.offline {
+  background: #F3F4F6;
+  color: #6B7280;
+  border-color: #E5E7EB;
 }
 
 .actions {
