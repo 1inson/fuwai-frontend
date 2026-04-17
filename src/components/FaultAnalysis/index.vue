@@ -74,8 +74,12 @@
         <AnomalyList
           v-else
           :items="anomalyList"
+          :loading="overviewLoading"
+          :pagination="pagination"
+          :totalPages="totalPages"
           :selectedId="selectedAnomaly?.anomaly_id ?? null"
           @select="selectAnomaly"
+          @changePage="changePage"
         />
       </div>
 
@@ -127,7 +131,10 @@ const {
   overviewLoading,
   overviewError,
   anomalyList,
+  pagination,
+  totalPages,
   fetchOverview,
+  changePage,
   detecting,
   detectProgress,
   detectLogs,

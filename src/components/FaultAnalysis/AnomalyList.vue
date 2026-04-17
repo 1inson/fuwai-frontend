@@ -1,8 +1,11 @@
 <template>
   <div class="anomaly-list-panel">
     <div class="panel-header">
-      <h3><Icon icon="lucide:list" class="h-icon" /> 异常事件列表</h3>
-      <span class="count-badge">{{ items.length }} 项</span>
+      <div class="header-copy">
+        <h3><Icon icon="lucide:list" class="h-icon" /> 异常事件列表</h3>
+        <span class="header-meta">{{ paginationText }}</span>
+      </div>
+      <span class="count-badge">{{ pagination.total }} 项</span>
     </div>
 
     <div v-if="items.length === 0" class="empty-state">
@@ -40,21 +43,47 @@
         <Icon icon="lucide:chevron-right" class="item-arrow" />
       </div>
     </div>
+
+    <div v-if="pagination.total > 0" class="pagination-bar">
+      <button class="ghost-btn" @click="$emit('changePage', pagination.page - 1)" :disabled="loading || pagination.page <= 1">
+        上一页
+      </button>
+      <div class="page-indicator">第 {{ pagination.page }} / {{ totalPages }} 页</div>
+      <button
+        class="ghost-btn"
+        @click="$emit('changePage', pagination.page + 1)"
+        :disabled="loading || pagination.page >= totalPages"
+      >
+        下一页
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import type { AnomalySummary } from '../../api/anomaly'
 
-defineProps<{
+const props = defineProps<{
   items: AnomalySummary[]
+  loading: boolean
+  pagination: { page: number; page_size: number; total: number }
+  totalPages: number
   selectedId: string | null
 }>()
 
 defineEmits<{
   (e: 'select', item: AnomalySummary): void
+  (e: 'changePage', page: number): void
 }>()
+
+const paginationText = computed(() => {
+  if (!props.pagination.total) return '当前没有异常事件'
+  const start = (props.pagination.page - 1) * props.pagination.page_size + 1
+  const end = Math.min(props.pagination.page * props.pagination.page_size, props.pagination.total)
+  return `显示 ${start}-${end} 条，共 ${props.pagination.total} 条`
+})
 
 const meterLabel = (meter?: string) => {
   const map: Record<string, string> = {
@@ -104,6 +133,12 @@ const formatTime = (iso: string) => {
   justify-content: space-between;
   padding: 20px 20px 14px;
   border-bottom: 1px solid #f0f0f0;
+  gap: 12px;
+}
+.header-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .panel-header h3 {
   margin: 0;
@@ -115,6 +150,10 @@ const formatTime = (iso: string) => {
   gap: 8px;
 }
 .h-icon { font-size: 18px; color: #0b4582; display: flex; }
+.header-meta {
+  font-size: 12px;
+  color: #7b8ba1;
+}
 .count-badge {
   font-size: 11px;
   background: #eff6ff;
@@ -146,12 +185,10 @@ const formatTime = (iso: string) => {
   color: #aaa;
 }
 
-/* 最多显示5条，少于5条时自适应内容高度 */
 .list-scroll {
   overflow-y: auto;
   padding: 8px 12px 12px;
-  /* 每个 item 约 70px 高（14px padding*2 + 内容），最多 5 条 + 一些间距 */
-  max-height: 390px;
+  max-height: 520px;
 }
 
 .anomaly-item {
@@ -235,4 +272,41 @@ const formatTime = (iso: string) => {
   transition: color 0.2s;
 }
 .anomaly-item.selected .item-arrow { color: #0b4582; }
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.page-indicator {
+  font-size: 12px;
+  color: #5f7189;
+  font-weight: 600;
+}
+
+.ghost-btn {
+  border: 1px solid #d9e4f0;
+  background: #fff;
+  color: #0b4582;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ghost-btn:hover:not(:disabled) {
+  border-color: #0b4582;
+  background: #f8fbff;
+}
+
+.ghost-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
 </style>
