@@ -192,6 +192,10 @@
                         <Icon icon="lucide:download" />
                         下载 Markdown
                       </button>
+                      <button class="secondary small danger-btn" :disabled="!selectedReportId || deletingReport" @click="removeSelectedReport">
+                        <Icon :icon="deletingReport ? 'lucide:loader-2' : 'lucide:trash-2'" :class="{ spin: deletingReport }" />
+                        {{ deletingReport ? '删除中...' : '删除报表' }}
+                      </button>
                     </div>
                   </div>
 
@@ -449,6 +453,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { connectOpsGuideStream, type OpsGuideResponse, type OpsGuideSSEEvent } from '../../api/anomaly'
 import {
+  deleteReport,
   generateReport,
   getReportDetail,
   listReports,
@@ -488,6 +493,7 @@ const opsAbortController = ref<AbortController | null>(null)
 const reportOpen = ref(true)
 const generating = ref(false)
 const summarizing = ref(false)
+const deletingReport = ref(false)
 const reportNotice = ref<{ type: 'ok' | 'err'; text: string } | null>(null)
 
 const form = ref({
@@ -769,6 +775,41 @@ const downloadReportFile = () => {
   if (reportId) window.open(`/api/reports/${reportId}?download=true&format=md`, '_blank')
 }
 
+const removeSelectedReport = async () => {
+  const reportId = selectedReportId.value || reportDetail.value?.report_id
+  if (!reportId || deletingReport.value) return
+
+  const confirmed = window.confirm(`确认删除报表 ${reportId} 吗？删除后不可恢复。`)
+  if (!confirmed) return
+
+  deletingReport.value = true
+  reportNotice.value = null
+  reportDetailError.value = ''
+  reportAiError.value = ''
+
+  try {
+    const response = unwrap(await deleteReport(reportId))
+
+    if (!response?.deleted) {
+      throw new Error(response?.message || '报表删除失败')
+    }
+
+    if (selectedReportId.value === reportId) {
+      selectedReportId.value = ''
+      reportDetail.value = null
+      reportAiResponse.value = null
+      reportQuestion.value = ''
+    }
+
+    reportNotice.value = { type: 'ok', text: response.message || '报表已删除。' }
+    await loadReportList(true)
+  } catch (error: any) {
+    reportNotice.value = { type: 'err', text: error?.message || '报表删除失败' }
+  } finally {
+    deletingReport.value = false
+  }
+}
+
 const askReportQuestion = async (question: string) => {
   if (!reportDetail.value) return
 
@@ -1010,9 +1051,11 @@ input:disabled{background:#f8fafc;color:#64748b}
 .primary,.secondary{min-height:40px;padding:0 16px;border:none;border-radius:10px;cursor:pointer;font:700 13px inherit;display:inline-flex;align-items:center;gap:6px}
 .primary{background:linear-gradient(135deg,#0b4582,#1565c0);color:#fff}
 .secondary{background:#eef2f7;color:#334155;border:1px solid #dbe5f0}
+.danger-btn{background:#fef2f2;color:#dc2626;border-color:#fecaca}
 .small{min-height:34px;padding:0 14px;font-size:12px}
 .primary:hover:not(:disabled),.report-item:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(11,69,130,.12)}
 .secondary:hover:not(:disabled){background:#e2e8f0}
+.danger-btn:hover:not(:disabled){background:#fee2e2}
 .primary:disabled,.secondary:disabled{opacity:.6;cursor:not-allowed}
 .center{display:flex;flex-direction:column;justify-content:center;text-align:center;gap:12px}
 .mini-state,.empty-state{gap:8px;justify-content:center;padding:14px;border:1px dashed #cbd5e1;border-radius:12px;color:#64748b;background:#f8fafc}

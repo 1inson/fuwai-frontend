@@ -424,6 +424,12 @@ export interface ReportSummaryResponse {
     [key: string]: any
 }
 
+export interface DeleteReportResponse {
+    report_id: string
+    deleted: boolean
+    message?: string
+}
+
 /** 1. 创建报表生成任务 */
 export const generateReport = (data: GenerateReportRequest) => {
     return request.post<GenerateReportResponse>('/reports/generate', data, {
@@ -473,7 +479,7 @@ export const downloadReport = (reportId: string, format: string = 'md') => {
 
 /** 4. 删除暂存的报表 */
 export const deleteReport = (reportId: string) => {
-    return request.delete(`/reports/${reportId}`, {
+    return request.delete<DeleteReportResponse>(`/reports/${reportId}`, {
         timeout: 10000
     })
 }
