@@ -270,8 +270,12 @@ export const getBuildingEnergySummary = (buildingId: string, params?: BuildingEn
 
 // ─── Types: Reports Integration ───────────────────────────────────
 
+export type ReportType = 'daily_summary' | 'weekly_summary' | 'monthly_summary' | 'anomaly_report'
+
+export type ReportStatus = 'queued' | 'processing' | 'ready' | 'failed'
+
 export interface GenerateReportRequest {
-    report_type: 'daily_summary' | 'weekly_summary' | 'monthly_summary' | 'anomaly_report'
+    report_type: ReportType
     building_id?: string
     time_range: TimeRange
     include_ai_summary?: boolean
@@ -279,12 +283,15 @@ export interface GenerateReportRequest {
 
 export interface GenerateReportResponse {
     report_id: string
-    status: 'queued' | 'processing' | 'ready' | 'failed'
+    status: ReportStatus
+    include_ai_summary?: boolean
+    ai_summary_applied?: boolean
+    ai_summary_skipped_reason?: string | null
 }
 
 export interface ReportStatusResponse {
     report_id: string
-    status: 'queued' | 'processing' | 'ready' | 'failed'
+    status: ReportStatus
     [key: string]: any
 }
 
@@ -307,26 +314,112 @@ export interface ReportDetailData {
     summary_metrics: ReportSummaryMetric[]
 }
 
+export interface ReportExportItem {
+    format: string
+    download_url: string
+    content_type?: string
+}
+
 export interface ReportDetailResponse {
     report_id: string
-    report_type: string
-    status: 'queued' | 'processing' | 'ready' | 'failed'
-    building_id: string
+    report_type: ReportType | string
+    status: ReportStatus
+    building_id?: string | null
     time_range: TimeRange
-    created_at: string
+    created_at?: string
     completed_at?: string
-    ai_summary?: string
+    generated_at?: string | null
+    summary?: string | null
+    ai_summary?: string | null
+    download_url?: string | null
+    exports?: ReportExportItem[]
     data?: ReportDetailData
 }
 
-export interface ReportSummaryRequest {
+export interface ReportListItem {
     report_id: string
+    report_type: ReportType | string
+    status: ReportStatus
+    time_range: TimeRange
+    building_id?: string | null
+    summary?: string | null
+    download_url?: string | null
+    generated_at?: string | null
+    include_ai_summary?: boolean
+    ai_summary_applied?: boolean
+    ai_summary_skipped_reason?: string | null
+    error_message?: string | null
+}
+
+export interface ReportListParams {
+    report_type?: ReportType
+    status?: ReportStatus
+    building_id?: string
+    page?: number
+    page_size?: number
+}
+
+export interface ReportListResponse {
+    items?: ReportListItem[]
+    pagination: Pagination
+}
+
+export interface ReportSummaryContext {
+    report_id?: string
+    building_id?: string | null
+    time_range?: TimeRange
+    page_context?: {
+        source?: string
+        page_type?: string
+        [key: string]: any
+    }
+    summary?: string | null
+    metrics_snapshot?: Record<string, any> | null
+    trend_summary?: string | null
+    anomaly_summary?: string | null
+    [key: string]: any
+}
+
+export interface ReportSummaryRequest {
+    question?: string
+    report_type?: ReportType | string
+    audience?: string
+    include_anomaly_insight?: boolean
+    include_actions?: boolean
+    context: ReportSummaryContext
+}
+
+export interface ReportSummaryEvidence {
+    source?: string
+    source_type?: string
+    snippet?: string
+    [key: string]: any
+}
+
+export interface ReportSummaryAction {
+    label: string
+    action?: string
+    target?: string
+    [key: string]: any
+}
+
+export interface ReportSummaryMeta {
+    model?: string
+    generated_at?: string
+    confidence?: string
+    low_confidence?: boolean
+    needs_more_context?: boolean
+    [key: string]: any
 }
 
 export interface ReportSummaryResponse {
-    report_id?: string
     summary?: string
-    ai_summary?: string
+    highlights?: string[]
+    risks?: string[]
+    suggestions?: string[]
+    evidence?: ReportSummaryEvidence[]
+    actions?: ReportSummaryAction[]
+    meta?: ReportSummaryMeta
     status?: string
     [key: string]: any
 }
@@ -340,6 +433,13 @@ export const generateReport = (data: GenerateReportRequest) => {
 }
 
 /** 2. 获取报表处理状态 (不下载文件流) */
+export const listReports = (params?: ReportListParams) => {
+    return request.get<ReportListResponse>('/reports', {
+        params: { ...params },
+        timeout: 30000
+    })
+}
+
 export const getReportStatus = (reportId: string) => {
     return request.get<ReportStatusResponse>(`/reports/${reportId}`, {
         params: { download: false },
