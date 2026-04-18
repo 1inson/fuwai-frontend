@@ -184,9 +184,9 @@
                         <Icon :icon="reportDetailLoading ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="{ spin: reportDetailLoading }" />
                         刷新详情
                       </button>
-                      <button class="secondary small" :disabled="!canViewReportFile" @click="viewReportFile">
+                      <button class="secondary small" :disabled="!selectedReportId || reportDetailLoading" @click="viewReportFile">
                         <Icon icon="lucide:external-link" />
-                        查看文件
+                        查看报表
                       </button>
                       <button class="primary small" :disabled="!selectedReportId" @click="downloadReportFile">
                         <Icon icon="lucide:download" />
@@ -810,16 +810,9 @@ const reloadSelectedReport = async () => {
   await fetchReportDetail(selectedReportId.value)
 }
 
-const viewReportFile = () => {
-  const url = resolveReportUrl()
-  if (url) {
-    window.open(url, '_blank')
-    return
-  }
-
-  if (selectedReportId.value) {
-    window.open(`/api/reports/${selectedReportId.value}?download=true&format=md`, '_blank')
-  }
+const viewReportFile = async () => {
+  if (!selectedReportId.value) return
+  await fetchReportDetail(selectedReportId.value)
 }
 
 const downloadReportFile = async () => {

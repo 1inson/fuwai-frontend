@@ -280,7 +280,13 @@ const handleGenerate = async () => {
 
 const handleDownload = () => {
   if (!generatedReportId.value) return
-  window.open(`/api/reports/${generatedReportId.value}?download=true&format=md`, '_blank')
+  const url = `/api/reports/${generatedReportId.value}?download=true&format=md`
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `report_${generatedReportId.value}.md`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
 }
 </script>
 

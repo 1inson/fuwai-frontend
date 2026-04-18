@@ -97,10 +97,15 @@ export interface EnergyTrendResponse {
 
 // ─── API Functions ───────────────────────────────────────────────
 
+const normalizeEnergyParams = (params?: EnergyQueryParams) => {
+    if (!params?.building_ids?.length) return { ...params }
+    return { ...params, building_ids: params.building_ids.join(',') }
+}
+
 /** 执行通用能耗查询（含 summary: total / peak / peak_time） */
 export const getEnergyQuery = (params?: EnergyQueryParams) => {
     return request.get<EnergyQueryResponse>('/energy/query', {
-        params: { ...params },
+        params: normalizeEnergyParams(params),
         timeout: 30000
     })
 }
@@ -173,6 +178,8 @@ export interface MeterListParams {
     building_id?: string
     meter_type?: string
     status?: 'online' | 'offline' | 'warning' | 'fault'
+    start_time?: string
+    end_time?: string
     page?: number
     page_size?: number
 }
