@@ -49,7 +49,7 @@
             <strong>报表详情</strong>
             <div class="actions">
               <button class="secondary small" :disabled="!selectedReportId || reportDetailLoading" @click="reloadSelectedReport"><Icon :icon="reportDetailLoading ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="{ spin: reportDetailLoading }" />刷新详情</button>
-              <button class="secondary small" :disabled="!canViewReportFile" @click="viewReportFile"><Icon icon="lucide:external-link" />查看文件</button>
+              <button class="secondary small" :disabled="!selectedReportId || reportDetailLoading" @click="viewReportDetail"><Icon icon="lucide:eye" />查看报表</button>
               <button class="primary small" :disabled="!selectedReportId" @click="downloadReportFile"><Icon icon="lucide:download" />下载 Markdown</button>
               <button class="secondary small danger" :disabled="!selectedReportId || deletingReport" @click="removeSelectedReport"><Icon :icon="deletingReport ? 'lucide:loader-2' : 'lucide:trash-2'" :class="{ spin: deletingReport }" />{{ deletingReport ? '删除中...' : '删除报表' }}</button>
             </div>
@@ -173,8 +173,6 @@ const reportAiMetaText = computed(() => {
   if (meta.needs_more_context) items.push('需要更多上下文')
   return items
 })
-const resolveReportUrl = () => reportDetail.value?.download_url || reportDetail.value?.exports?.[0]?.download_url || selectedReportListItem.value?.download_url || ''
-const canViewReportFile = computed(() => Boolean(resolveReportUrl()) || Boolean(selectedReportId.value))
 const getSourceText = (reportId: string) => {
   const context = reportContextMap.value[reportId]
   return !context ? '' : context.sourceType === 'meter' ? `来源设备：${context.sourceLabel}` : `来源建筑：${context.sourceLabel}`
@@ -209,7 +207,11 @@ const applyFilters = async () => { reportFilters.value.page = 1; await loadRepor
 const changePage = async (step: number) => { const nextPage = reportFilters.value.page + step; if (nextPage < 1 || nextPage > totalPages.value) return; reportFilters.value.page = nextPage; await loadReportList() }
 const refreshReports = async () => { await loadReportList(); if (selectedReportId.value) await fetchReportDetail(selectedReportId.value) }
 const reloadSelectedReport = async () => { if (selectedReportId.value) await fetchReportDetail(selectedReportId.value) }
-const viewReportFile = () => { const url = resolveReportUrl(); if (url) window.open(url, '_blank'); else if (selectedReportId.value) window.open(`/api/reports/${selectedReportId.value}?download=true&format=md`, '_blank') }
+const viewReportDetail = async () => {
+  if (!selectedReportId.value) return
+  await fetchReportDetail(selectedReportId.value)
+  reportNotice.value = { type: 'ok', text: '报表详情已刷新，请在右侧查看。' }
+}
 const downloadReportFile = async () => {
   const reportId = selectedReportId.value || reportDetail.value?.report_id
   if (!reportId) return
