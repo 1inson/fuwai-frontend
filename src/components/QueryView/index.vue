@@ -37,10 +37,10 @@
           <label>建筑选择</label>
           <select v-model="filterForm.status" class="select-box" @change="handleStatusChange">
             <option value="">全部建筑</option>
-            <option value="normal">正常</option>
-            <option value="error">异常</option>
-            <option value="warning">告警</option>
-            <option value="offline">离线</option>
+            <option value="online">正常</option>      <!-- 修改：normal → online -->
+            <option value="fault">异常</option>       <!-- 修改：error → fault -->
+            <option value="warning">告警</option>     <!-- 保持不变 -->
+            <option value="offline">离线</option> 
           </select>
         </div>
 
@@ -167,7 +167,8 @@
       <BuildingTable
         ref="buildingTableRef"
         :filter-form="{
-          status: filterForm.status
+          status: filterForm.status,
+          timeRange: filterForm.timeRange
         }"
         :advanced-filters="advancedFilters"
         :sort-config="sortConfig"

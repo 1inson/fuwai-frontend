@@ -163,7 +163,10 @@ interface PaginationInfo {
 
 // ===== Props & Emits =====
 const props = defineProps<{
-  filterForm?: { status?: string },
+  filterForm?: { 
+    status?: string,
+    timeRange?: 'today' | 'week' | 'month' | 'quarter' | 'year'  // 添加这一行
+  },
   advancedFilters?: Record<string, any>,
   sortConfig?: { field: string, order: 'asc' | 'desc' },
   timeRange?: 'today' | 'week' | 'month' | 'quarter' | 'year',
@@ -196,7 +199,7 @@ const getStatusText = (status: string): string => {
     'online': '运行正常',
     'fault': '异常状态',
     'warning': '告警状态',
-    'offline': '离线'
+    'offline': '离线状态'
   }
   return map[status] || status
 }
@@ -204,10 +207,13 @@ const getStatusText = (status: string): string => {
 // 状态样式映射
 const mapStatusToClass = (status: string): string => {
   const map: Record<string, string> = {
-    'normal': 'online',
-    'error': 'fault',
+    'online': 'online',
+    'fault': 'fault',       // 对应 fault
     'warning': 'warning',
-    'offline': 'offline'
+    'offline': 'offline',
+    // 兼容之前的值（如果有历史数据）
+    'normal': 'online',
+    'error': 'fault'
   }
   return map[status] || status
 }
