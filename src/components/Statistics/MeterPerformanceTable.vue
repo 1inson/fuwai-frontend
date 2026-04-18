@@ -126,6 +126,17 @@ const props = defineProps<{
   endTime: string
 }>()
 
+const getStatusText = (status?: string): string => {
+  if (!status) return '—'
+  const texts: Record<string, string> = {
+    online: '在线',
+    warning: '告警',
+    fault: '故障',
+    offline: '离线',
+  }
+  return texts[status] || status
+}
+
 interface MeterRow {
   meter_id: string
   meter_name: string
