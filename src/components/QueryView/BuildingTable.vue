@@ -278,7 +278,7 @@ const fetchBuildings = async () => {
   
   try {
     // 1. 获取建筑列表
-    const buildingsRes = await axios.get('/api/buildings', {
+    const buildingsRes = await axios.get('/buildings', { 
       params: {
         page: pagination.value.currentPage,
         page_size: pagination.value.pageSize,
