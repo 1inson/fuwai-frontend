@@ -24,15 +24,19 @@
           </div>
           <div class="format-info">
             <span class="format-text">Markdown (.md)</span>
-            <span class="format-desc">导出为Markdown表格格式，包含所有列表数据</span>
+            <span class="format-desc">导出为Markdown表格格式，包含所有列表数据及建筑详情</span>
           </div>
         </div>
         
         <!-- 数据预览 -->
-        <div class="preview-section" v-if="exportData && exportData.length > 0">
+        <div class="preview-section" v-if="hasAnyData">
           <div class="preview-header">
-            <span>即将导出 {{ exportData.length }} 条记录</span>
+            <span>即将导出 {{ totalRecords }} 条记录</span>
             <span class="time-range" v-if="timeRangeText">时间范围：{{ timeRangeText }}</span>
+          </div>
+          <div class="preview-details" v-if="metrics && metrics.length">
+            <span>包含 {{ metrics.length }} 项基础指标</span>
+            <span v-if="meters && meters.length">, {{ meters.length }} 个表计状态</span>
           </div>
         </div>
         
@@ -47,7 +51,7 @@
         <button 
           class="btn btn-export" 
           @click="handleExport" 
-          :disabled="exporting || !exportData || exportData.length === 0"
+          :disabled="exporting || !hasAnyData"
         >
           <svg v-if="exporting" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;" class="spin">
             <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="10"></circle>
@@ -66,22 +70,53 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { getCurrentTimeString } from '../../utils/timeManager'
+
+// 定义指标和表计的数据结构类型
+interface MetricItem {
+  key: string
+  label: string
+  value: number
+  unit?: string
+}
+
+interface MeterItem {
+  meter: string
+  available: boolean
+}
 
 const props = defineProps<{
   visible: boolean
-  // 新增：接收父组件传递的数据
-  exportData?: any[]           // 列表数据（如小时级监控数据）
-  buildingId?: string          // 建筑ID
-  timeRange?: string           // 时间范围标识（today/week/month等）
-  startTime?: string           // 开始时间
-  endTime?: string             // 结束时间
-  columns?: { key: string; label: string }[]  // 列定义（可选，用于表头）
+  // 基础数据（列表数据）
+  exportData?: any[]
+  buildingId?: string
+  timeRange?: string
+  startTime?: string
+  endTime?: string
+  columns?: { key: string; label: string }[]
+  
+  // 新增：建筑详情数据，用于生成完整报告
+  metrics?: MetricItem[]        // 基础指标（如总能耗、峰值等）
+  meters?: MeterItem[]          // 表计可用性数据
+  selectedDay?: string          // 选中的日期（用于文件名）
 }>()
 
 const emit = defineEmits(['update:visible', 'export'])
 
 const exporting = ref(false)
+
+// 判断是否有任何数据可导出
+const hasAnyData = computed(() => {
+  return (props.exportData && props.exportData.length > 0) || 
+         (props.metrics && props.metrics.length > 0)
+})
+
+// 计算总记录数
+const totalRecords = computed(() => {
+  let count = props.exportData?.length || 0
+  if (props.metrics) count += props.metrics.length
+  if (props.meters) count += props.meters.length
+  return count
+})
 
 // 计算时间范围文本
 const timeRangeText = computed(() => {
@@ -98,6 +133,9 @@ const timeRangeText = computed(() => {
   if (props.startTime && props.endTime) {
     return `${props.startTime} 至 ${props.endTime}`
   }
+  if (props.selectedDay) {
+    return props.selectedDay
+  }
   return ''
 })
 
@@ -107,24 +145,16 @@ const formatNumber = (val: number | null | undefined): string => {
   return val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
-// 格式化时间
-const formatTime = (timeStr: string): string => {
-  if (!timeStr) return '-'
-  try {
-    const date = new Date(timeStr)
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:00`
-  } catch {
-    return timeStr
-  }
-}
+// 格式化表计名称
+const formatMeterName = (meter: string): string => meter || '-'
 
 const handleClose = () => {
-  if (exporting.value) return // 导出中不允许关闭
+  if (exporting.value) return
   emit('update:visible', false)
 }
 
 const handleExport = async () => {
-  if (!props.exportData || props.exportData.length === 0) {
+  if (!hasAnyData.value) {
     alert('暂无数据可导出')
     return
   }
@@ -134,9 +164,9 @@ const handleExport = async () => {
   try {
     const lines: string[] = []
     const now = new Date()
-    const exportTime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
+    const exportTime = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
     
-    // 标题
+    // ========== 1. 标题与元信息（复用第一个组件的逻辑） ==========
     lines.push(`# 建筑运行数据报表 - ${props.buildingId || 'Unknown'}`)
     lines.push('')
     lines.push(`> 导出时间: ${now.toLocaleString('zh-CN')}`)
@@ -148,52 +178,102 @@ const handleExport = async () => {
     }
     lines.push('')
 
-    // 表格标题
-    lines.push('## 小时级监控数据')
-    lines.push('')
-
-    // 表头 - 根据传入的columns或默认列
-    const headers = props.columns || [
-      { key: 'time', label: '时间' },
-      { key: 'total', label: '总能耗 (KWH)' },
-      { key: 'peak', label: '峰值 (KW)' },
-      { key: 'average', label: '平均 (KWH)' }
-    ]
-    
-    const headerLine = '| ' + headers.map(h => h.label).join(' | ') + ' |'
-    const separatorLine = '|' + headers.map(() => '------').join('|') + '|'
-    
-    lines.push(headerLine)
-    lines.push(separatorLine)
-
-    // 数据行
-    for (const item of props.exportData) {
-      const rowValues = headers.map(header => {
-        let value = item[header.key]
-        // 特殊处理时间字段
-        if (header.key === 'time' || header.key === 'hour') {
-          value = formatTime(value)
-        } else if (typeof value === 'number') {
-          value = formatNumber(value)
-        } else if (value === undefined || value === null) {
-          value = '-'
-        }
-        return value
-      })
-      lines.push('| ' + rowValues.join(' | ') + ' |')
+    // ========== 2. 基础信息部分（新增，来自第一个组件） ==========
+    if (props.metrics && props.metrics.length > 0) {
+      lines.push('## 基础信息')
+      lines.push('')
+      lines.push('| 指标 | 值 |')
+      lines.push('|------|-----|')
+      
+      for (const metric of props.metrics) {
+        const valueStr = metric.unit 
+          ? `${metric.value.toLocaleString()} ${metric.unit}` 
+          : metric.value.toLocaleString()
+        lines.push(`| ${metric.label} | ${valueStr} |`)
+      }
+      lines.push('')
     }
-    
-    lines.push('')
-    lines.push(`---`)
-    lines.push(`*共导出 ${props.exportData.length} 条数据*`)
 
-    // 生成文件
+    // ========== 3. 小时级监测数据（复用并增强原有逻辑） ==========
+    if (props.exportData && props.exportData.length > 0) {
+      lines.push('## 小时级监测数据')
+      lines.push('')
+
+      // 表头处理：优先使用传入的columns，否则使用默认列
+      const headers = props.columns || [
+        { key: 'hour', label: '时间' },
+        { key: 'total', label: '总能耗(KWH)' },
+        { key: 'peak', label: '峰值(KW)' },
+        { key: 'average', label: '平均(KWH)' }
+      ]
+      
+      const headerLine = '| ' + headers.map(h => h.label).join(' | ') + ' |'
+      const separatorLine = '|' + headers.map(() => '------').join('|') + '|'
+      
+      lines.push(headerLine)
+      lines.push(separatorLine)
+
+      // 数据行处理
+      for (const item of props.exportData) {
+        const rowValues = headers.map(header => {
+          let value = item[header.key]
+          
+          // 特殊处理时间字段（兼容多种时间格式）
+          if (header.key === 'time' || header.key === 'hour') {
+            if (typeof value === 'string' && value.includes('T')) {
+              // ISO格式时间转换
+              const date = new Date(value)
+              if (!isNaN(date.getTime())) {
+                value = `${String(date.getHours()).padStart(2, '0')}:00`
+              }
+            }
+          } else if (typeof value === 'number') {
+            value = formatNumber(value)
+          } else if (value === undefined || value === null) {
+            value = '-'
+          }
+          return value
+        })
+        lines.push('| ' + rowValues.join(' | ') + ' |')
+      }
+      lines.push('')
+    }
+
+    // ========== 4. 表计可用性（新增，来自第一个组件） ==========
+    if (props.meters && props.meters.length > 0) {
+      const hasAvailableMeters = props.meters.some(item => item.available)
+      if (hasAvailableMeters) {
+        lines.push('## 表计可用性')
+        lines.push('')
+        lines.push('| 表计类型 | 可用 |')
+        lines.push('|---------|------|')
+        
+        for (const meter of props.meters) {
+          const status = meter.available ? '是' : '否'
+          lines.push(`| ${formatMeterName(meter.meter)} | ${status} |`)
+        }
+        lines.push('')
+      }
+    }
+
+    // ========== 5. 页脚统计 ==========
+    lines.push('---')
+    lines.push(`*共导出 ${props.exportData?.length || 0} 条数据*`)
+    if (props.metrics) {
+      lines.push(`*包含 ${props.metrics.length} 项基础指标*`)
+    }
+
+    // ========== 6. 生成并下载文件（复用原有逻辑） ==========
     const mdContent = lines.join('\n')
     const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    const fileName = `building_${props.buildingId || 'data'}_${exportTime}.md`
+    
+    // 文件名格式：building_{ID}_{日期}.md
+    const fileDate = props.selectedDay || exportTime
+    const fileName = `building_${props.buildingId || 'data'}_${fileDate}.md`
+    
     link.setAttribute('download', fileName)
     document.body.appendChild(link)
     link.click()
@@ -204,7 +284,8 @@ const handleExport = async () => {
     emit('export', { 
       format: 'md', 
       fileName,
-      count: props.exportData.length 
+      count: props.exportData?.length || 0,
+      metricsCount: props.metrics?.length || 0
     })
     
     // 延迟关闭，让用户看到完成状态
@@ -365,6 +446,12 @@ const handleExport = async () => {
   align-items: center;
   font-size: 13px;
   color: #374151;
+}
+
+.preview-details {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6B7280;
 }
 
 .time-range {

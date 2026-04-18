@@ -912,6 +912,7 @@ const fetchData = async () => {
     
     await fetchHourlyData();
     await fetchMetricsData(); // 新增：获取EUI和故障次数
+    await fetchCategoryEnergy();
 
   } catch (err: any) {
     console.error('Failed to fetch building details', err);
@@ -1125,115 +1126,92 @@ const fetchMetricsData = async () => {
 
 const derivedData = computed(() => {
   // ===== 基础数据提取 =====
-  const area = Number(buildingInfo.value.sqm) || 22117; // 建筑面积(m²)，默认22,117
-  const occupancy = Number(buildingInfo.value.occupancy) || 85; // 使用人数，默认85人避免除0
+  const area = Number(buildingInfo.value.sqm) || 0;
+  const occupancy = Number(buildingInfo.value.occupancy) || 0;
   
   // ===== 1. COP数据 (来自 /energy/cop 接口) =====
-  // 用户要求：基准EUI→平均COP，源头级→最大COP，场地级→最小COP
   const copSummary = euiResponse.value?.summary || {};
-  const avgCOP = copSummary.avg_cop ?? 3.2;
-  const minCOP = copSummary.min_cop ?? 3.2;
-  const maxCOP = copSummary.max_cop ?? 3.2;
+  const avgCOP = copSummary.avg_cop ?? 0;
+  const minCOP = copSummary.min_cop ?? 0;
+  const maxCOP = copSummary.max_cop ?? 0;
   
   // ===== 2. 碳排放数据计算 =====
-  // 实际总碳排放量 (kgCO2e/年)
   const totalCarbon = Number(
     rawData.value.carbonData?.total ?? 
     rawData.value.carbonData?.annual_carbon ?? 
-    1250.50
+    0
   );
   
-  // 基准碳排放量计算：基准EUI(110) × 面积 × 碳排放因子(0.5703 kgCO2/kWh)
-  // 使用中国电网平均碳排放因子 0.5703 kgCO2/kWh (2024年生态环境部发布)
-  const baselineEUI = 110; // kWh/m²/年 (GB/T 51161-2016 娱乐/公共建筑约束值)
-  const carbonFactor = 0.5703; // kgCO2/kWh
-  const baselineCarbon = baselineEUI * area * carbonFactor; // 基准碳排放 (kgCO2e)
+  // 基准碳排放量计算
+  const baselineEUI = 110;
+  const carbonFactor = 0.5703;
+  const baselineCarbon = baselineEUI * area * carbonFactor;
   
-  // 碳减排量和减排率 (图三公式)
+  // 碳减排量和减排率
   const carbonReduction = Math.max(0, baselineCarbon - totalCarbon);
   const carbonReductionRate = baselineCarbon > 0 ? 
     ((carbonReduction / baselineCarbon) * 100).toFixed(1) : '0.0';
   
   // ===== 3. 单位面积和人均碳排放 =====
-  const carbonPerArea = area > 0 ? (totalCarbon / area).toFixed(1) : '10.1';
-  const carbonPerPerson = occupancy > 0 ? (totalCarbon / occupancy).toFixed(1) : '147.1';
+  const carbonPerArea = area > 0 ? (totalCarbon / area).toFixed(1) : '-';
+  const carbonPerPerson = occupancy > 0 ? (totalCarbon / occupancy).toFixed(1) : '-';
   
-  // ===== 4. 能耗数据 (用于人均能耗和可再生能源替代率) =====
-  // 建筑总用电量 (kWh/年) - 作为"建筑总能耗"
+  // ===== 4. 能耗数据 =====
   const totalElectricity = Number(
     rawData.value.electricityData?.summary?.total ?? 
     rawData.value.electricityData?.total ?? 
-    12500.8
+    0
   );
   
-  // 太阳能发电量 (kWh/年) - 自发自用
   const solarGeneration = Number(
     rawData.value.solarData?.summary?.total ?? 
     rawData.value.solarData?.total ?? 
     0
   );
   
-  // 人均能耗强度 (kWh/人/年) = 总能耗 / 人数
   const energyPerPerson = occupancy > 0 ? 
-    (totalElectricity / occupancy).toFixed(1) : '125.5';
+    (totalElectricity / occupancy).toFixed(1) : '-';
   
-  // 可再生能源替代率 (图四公式) = 太阳能发电 / 总用电 × 100%
   const renewableRate = totalElectricity > 0 ? 
     ((solarGeneration / totalElectricity) * 100).toFixed(1) : '0.0';
   
   // ===== 5. 水耗数据 =====
-  // 水耗总量 (m³/年)
   const waterConsumption = Number(
     rawData.value.waterData?.summary?.total ?? 
     rawData.value.waterData?.total ?? 
-    552.9 // 默认: 0.025 * 22117 ≈ 552.9
+    0
   );
   
-  // 单位面积水耗 (m³/m²) = 水耗 / 面积
   const waterPerArea = area > 0 ? 
-    (waterConsumption / area).toFixed(3) : '0.025';
+    (waterConsumption / area).toFixed(3) : '-';
   
-  // ===== 6. 分类能耗数据 (原有逻辑保留) =====
+  // ===== 6. 分类能耗数据 =====
   const catData = rawData.value.categoryEnergy;
   const categoryEnergyTotal = Number(catData?.summary?.total ?? 0);
   
-  // 分项能耗占比 = 分类能耗 / 总能耗
   const energyRatio = totalElectricity > 0 ? 
     ((categoryEnergyTotal / totalElectricity) * 100).toFixed(1) + '%' : '0%';
   
   return { 
-    // COP数据 (用户要求：用COP值填充EUI字段)
-    cop: avgCOP.toFixed(1),                    // COP值 (平均)
-    
-    // 碳排放数据 (全部接入接口或基于接口计算)
-    annualCarbon: totalCarbon.toFixed(2),      // 建筑年度总碳排放量 (kgCO2e)
-    carbonPerArea: carbonPerArea,               // 单位面积碳排放量 (kgCO2e/m²)
-    carbonPerPerson: carbonPerPerson,           // 人均碳排放量 (kgCO2e/人)
-    carbonReduction: carbonReduction.toFixed(1), // 碳减排量 (kgCO2e)
-    carbonReductionRate: carbonReductionRate + '%', // 碳减排率 (%)
-    
-    // 可再生能源 (基于接口计算)
-    renewableRate: renewableRate + '%',         // 可再生能源替代率 (%)
-    
-    // EUI相关字段 (用户要求：换成平均/最大/最小COP值)
-    // 模板标签建议同步改为：平均EUI(COP)、最大EUI(COP)、最小EUI(COP)
-    euiBaseline: avgCOP.toFixed(1),            // 原"能耗强度基准值EUI" → 平均COP
-    euiSource: maxCOP.toFixed(1),               // 原"源头级EUI" → 最大COP
-    euiSite: minCOP.toFixed(1),                 // 原"场地级EUI" → 最小COP
-    
-    // 水耗 (基于接口计算)
-    waterPerArea: waterPerArea,                 // 单位面积水耗 (m³/m²)
-    
-    // 人均能耗 (基于接口计算)
-    energyPerPerson: energyPerPerson,           // 人均能耗强度 (kWh/人/年)
-    
-    // 分类能耗展示
-    energyType: energyCategory.value,           // 当前选中的能耗类别
-    totalEnergy: categoryEnergyTotal.toFixed(1), // 对应类别总能耗 (kWh)
-    energyRatio: energyRatio,                     // 分项能耗占比 (%)
-    totalEnergyAll: totalElectricity.toFixed(1)   // 建筑总能耗 (总用电量) (kWh)
+    cop: avgCOP.toFixed(1),
+    annualCarbon: totalCarbon.toFixed(2),
+    carbonPerArea: carbonPerArea,
+    carbonPerPerson: carbonPerPerson,
+    carbonReduction: carbonReduction.toFixed(1),
+    carbonReductionRate: carbonReductionRate + '%',
+    renewableRate: renewableRate + '%',
+    euiBaseline: avgCOP.toFixed(1),
+    euiSource: maxCOP.toFixed(1),
+    euiSite: minCOP.toFixed(1),
+    waterPerArea: waterPerArea,
+    energyPerPerson: energyPerPerson,
+    energyType: energyCategory.value,
+    totalEnergy: categoryEnergyTotal.toFixed(1),
+    energyRatio: energyRatio,
+    totalEnergyAll: totalElectricity.toFixed(1)
   };
 });
+
 
 // 动态计算指标（从死数据改为接口驱动）
 const metrics = computed(() => {
@@ -1246,7 +1224,7 @@ const metrics = computed(() => {
                    euiResponse.value?.eui_site ?? 
                    euiResponse.value?.eui ?? 
                    derivedData.value.euiSite ?? 
-                   88.5;
+                   0;  // 删除 88.5，改为 0
   
   // 3. EUI达标率 = (基准EUI - 实际EUI) ÷ 基准EUI × 100%
   let euiRate = 0;
@@ -1263,12 +1241,6 @@ const metrics = computed(() => {
     euiRate: euiRate.toFixed(1)           // EUI达标率（保留1位小数）
   };
 });
-
-const getSettingPageTime = () => {
-  const virtualTime = localStorage.getItem('virtualSystemTime');
-  if (virtualTime) return new Date(virtualTime).toISOString();
-  return new Date().toISOString();
-};
 
 // 计算时间范围（用于衍生数据统计周期）
 const calculateTimeRange = (range: string) => {
@@ -1325,6 +1297,12 @@ const calculateTimeRange = (range: string) => {
     start_time: formatDateTime(start) + ' 00:00:00',
     end_time: formatDateTime(end) + ' 23:59:59'
   };
+};
+
+const getSettingPageTime = () => {
+  const virtualTime = localStorage.getItem('virtualSystemTime');
+  if (virtualTime) return new Date(virtualTime).toISOString();
+  return new Date().toISOString();
 };
 
 // 确保 currentSystemTime 也存在
