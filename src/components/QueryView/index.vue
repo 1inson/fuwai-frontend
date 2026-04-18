@@ -344,25 +344,25 @@ const fetchBuildingList = async () => {
     
     const response = await axios.get('/api/buildings', { params });
     
-     // 【修改】更健壮的数据处理
-    if (Array.isArray(response.data)) {
+    // 【修改】兼容后端返回的 {items, pagination} 格式
+    if (response.data?.items && Array.isArray(response.data.items)) {
+      // 后端返回格式：{items: [...], pagination: {total: ...}}
+      buildingList.value = response.data.items;
+      pagination.value.total = response.data.pagination?.total || response.data.items.length;
+    } else if (Array.isArray(response.data)) {
+      // 直接返回数组
       buildingList.value = response.data;
       pagination.value.total = response.data.length;
-    } else if (response.data?.code === 200 || response.data?.success) {
-      buildingList.value = response.data.data || response.data.items || [];
-      pagination.value.total = response.data.total || response.data.pagination?.total || 0;
+    } else if (response.data?.code === 200) {
+      // 标准格式 {code: 200, data: [...], total: ...}
+      buildingList.value = response.data.data || [];
+      pagination.value.total = response.data.total || 0;
     } else {
       console.warn('后端返回格式异常:', response.data);
     }
 
   } catch (error: any) {
-    // 【修改】打印完整错误，便于调试
-    console.error('获取建筑列表失败详情:', {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-      url: error?.config?.url
-    });
+    console.error('获取建筑列表失败:', error);
   } finally {
     loading.value = false;
   }
