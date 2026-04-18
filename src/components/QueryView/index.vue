@@ -94,7 +94,7 @@
 
     <!-- 数据卡片 -->
     <div class="data-card">
-      <!-- 卡片头部：排序 + 导出按钮 -->
+      <!-- 卡片头部：排序 + 导出按钮 + 刷新按钮 -->
       <div class="card-header">
         <div class="sort-section">
           <span class="sort-label">排序依据：</span>
@@ -130,8 +130,31 @@
           </span>
         </div>
         
-        <!-- [修改5] 导出按钮组：完善导出模式切换逻辑 -->
+        <!-- [修改5] 导出按钮组 + 刷新按钮：完善导出模式切换逻辑 -->
         <div class="export-section">
+          <!-- 【新增】刷新数据按钮 -->
+          <button 
+            class="btn-refresh" 
+            @click="handleRefresh" 
+            :disabled="loading"
+            title="刷新数据"
+          >
+            <svg 
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              stroke-width="2"
+              :class="{ 'spin': loading }"
+            >
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            <span>{{ loading ? '加载中...' : '刷新数据' }}</span>
+          </button>
+
           <template v-if="isExportMode">
             <!-- 取消按钮：点击返回初始状态 -->
             <button class="btn-cancel-select" @click="cancelExportMode">取消</button>
@@ -202,7 +225,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import FilterModal from './FilterModal.vue';
@@ -341,6 +364,15 @@ const fetchBuildingList = async () => {
  finally {
     loading.value = false;
   }
+};
+
+// ===== [新增] 手动刷新方法 =====
+const handleRefresh = async () => {
+  // 同时刷新建筑列表和高亮数据
+  await Promise.all([
+    fetchBuildingList(),
+    fetchHighlights()
+  ]);
 };
 
 // ===== [修改11] 导出功能方法完善 =====
@@ -535,8 +567,11 @@ const handleFaultAnalysis = (item: any) => {
 
 // ===== [修改13] 生命周期优化 =====
 onMounted(() => {
+  // 不再自动加载建筑列表，改为手动点击刷新按钮
+  // fetchBuildingList(); // 【注释掉】改为手动刷新
+  
+  // 只自动加载高亮统计
   fetchHighlights();
-  fetchBuildingList(); // 初始化加载列表
   
   // 每30秒刷新一次高亮数据
   const highlightTimer = setInterval(fetchHighlights, 30000);
@@ -555,9 +590,6 @@ watch(
     // 这里简单处理，实际可使用lodash.debounce
   }
 );
-
-// 导入onUnmounted
-import { onUnmounted } from 'vue';
 </script>
 
 <style scoped>
@@ -839,6 +871,48 @@ h1 {
   gap: 12px;
 }
 
+/* 【新增】刷新按钮样式 */
+.btn-refresh {
+  height: 40px;
+  padding: 0 20px;
+  background: white;
+  color: #374151;
+  border: 1px solid #D1D5DB;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  border-color: #005BAC;
+  color: #005BAC;
+  background: #EFF6FF;
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #F3F4F6;
+}
+
+.btn-refresh svg {
+  transition: transform 0.3s;
+}
+
+.btn-refresh svg.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .btn-export {
   height: 40px;
   padding: 0 24px;
@@ -940,6 +1014,11 @@ h1 {
   .card-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+  
+  .export-section {
+    width: 100%;
+    justify-content: flex-end;
   }
   
   .alert-badge {
