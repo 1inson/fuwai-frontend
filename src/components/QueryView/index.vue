@@ -332,10 +332,13 @@ const fetchBuildingList = async () => {
       console.error('获取建筑列表失败:', response.data?.message || '未知错误');
     }
 
-  } catch (error) {
-    console.error('获取建筑列表接口错误:', error);
-    // 这里可以添加错误提示toast
-  } finally {
+  } catch (error: any) {
+  // 【修改】安全地获取错误信息
+    const errorMsg = error?.message || error?.response?.data?.message || '请求失败';
+    console.error('获取建筑列表接口错误:', errorMsg, error);
+  // 这里可以添加错误提示toast
+  }
+ finally {
     loading.value = false;
   }
 };
