@@ -317,7 +317,7 @@ const fetchBuildingList = async () => {
       params.status = filterForm.value.status;
     }
     
-    const response = await axios.get('/api/buildings/list', { params });
+    const response = await axios.get('/api/buildings', { params });
     
     if (response.data && response.data.code === 200) {
       buildingList.value = response.data.data || [];
