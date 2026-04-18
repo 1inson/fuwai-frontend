@@ -165,6 +165,10 @@ import {
 } from '../../api/statistics'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
 
+type SummaryGranularity = 'day' | 'week' | 'month'
+const energySummaryCache = new Map<string, EnergySummary | null>()
+const copSummaryCache = new Map<string, CopSummary | null>()
+
 // ─── State ──────────────────────────────────────────────────────
 const loading = ref(false)
 const copLoading = ref(false)
@@ -217,6 +221,7 @@ const budgetPercent = computed(() => {
 const copRatingClass = computed(() => {
   if (!copSummary.value) return ''
   const cop = copSummary.value.avg_cop
+  if (cop == null || !Number.isFinite(Number(cop))) return 'missing'
   if (cop >= 5) return 'outstanding'
   if (cop >= 4) return 'good'
   if (cop >= 3) return 'fair'
@@ -226,6 +231,7 @@ const copRatingClass = computed(() => {
 const copRatingText = computed(() => {
   if (!copSummary.value) return '—'
   const cop = copSummary.value.avg_cop
+  if (cop == null || !Number.isFinite(Number(cop))) return '数据不足'
   if (cop >= 5) return 'Tier 1 (Outstanding)'
   if (cop >= 4) return 'Tier 2 (Good)'
   if (cop >= 3) return 'Tier 3 (Fair)'
@@ -249,7 +255,6 @@ const formatPeakTime = (iso: string | null | undefined): string => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }
 
-type SummaryGranularity = 'day' | 'week' | 'month'
 const resolveSummaryGranularity = (): SummaryGranularity => {
   const start = new Date(activeStart.value).getTime()
   const end = new Date(activeEnd.value).getTime()
@@ -259,6 +264,8 @@ const resolveSummaryGranularity = (): SummaryGranularity => {
   if (days > 31) return 'week'
   return 'day'
 }
+
+const buildSummaryCacheKey = () => `${activeStart.value}__${activeEnd.value}__${resolveSummaryGranularity()}`
 
 // ─── Init time range: default to current month ──────────────────
 const initTimeRange = () => {
@@ -296,8 +303,17 @@ usePageAIContext('statistics', pageAIContext)
 
 // ─── Data fetching ──────────────────────────────────────────────
 const unwrap = (res: any) => res?.data ?? res
+let energyRequestSeq = 0
+let copRequestSeq = 0
 
 const fetchEnergy = async () => {
+  const cacheKey = buildSummaryCacheKey()
+  if (energySummaryCache.has(cacheKey)) {
+    energySummary.value = energySummaryCache.get(cacheKey) ?? null
+    return
+  }
+  const requestId = ++energyRequestSeq
+  energySummary.value = null
   loading.value = true
   try {
     const raw = await getEnergyQuery({
@@ -308,16 +324,26 @@ const fetchEnergy = async () => {
       aggregation: 'sum'
     })
     const data = unwrap(raw)
+    if (requestId !== energyRequestSeq) return
     energySummary.value = data?.summary ?? null
+    energySummaryCache.set(cacheKey, energySummary.value)
   } catch (err: any) {
+    if (requestId !== energyRequestSeq) return
     console.error('能耗查询失败:', err.message)
     error.value = '能耗数据加载失败: ' + (err?.message || '未知错误')
   } finally {
-    loading.value = false
+    if (requestId === energyRequestSeq) loading.value = false
   }
 }
 
 const fetchCop = async () => {
+  const cacheKey = buildSummaryCacheKey()
+  if (copSummaryCache.has(cacheKey)) {
+    copSummary.value = copSummaryCache.get(cacheKey) ?? null
+    return
+  }
+  const requestId = ++copRequestSeq
+  copSummary.value = null
   copLoading.value = true
   try {
     const raw = await getCopAnalysis({
@@ -326,15 +352,18 @@ const fetchCop = async () => {
       granularity: resolveSummaryGranularity()
     })
     const data = unwrap(raw)
+    if (requestId !== copRequestSeq) return
     copSummary.value = data?.summary ?? null
+    copSummaryCache.set(cacheKey, copSummary.value)
   } catch (err: any) {
+    if (requestId !== copRequestSeq) return
     console.error('COP 查询失败:', err.message)
     // 不覆盖 energy 错误
     if (!error.value) {
       error.value = 'COP 数据加载失败: ' + (err?.message || '未知错误')
     }
   } finally {
-    copLoading.value = false
+    if (requestId === copRequestSeq) copLoading.value = false
   }
 }
 
@@ -671,6 +700,7 @@ onMounted(() => {
 .kpi-icon-badge.cop.good { background: #eff6ff; color: #2563eb; }
 .kpi-icon-badge.cop.fair { background: #fffbeb; color: #d97706; }
 .kpi-icon-badge.cop.poor { background: #fef2f2; color: #dc2626; }
+.kpi-icon-badge.cop.missing { background: #f1f5f9; color: #64748b; }
 
 .kpi-icon {
   font-size: 22px;
@@ -794,6 +824,7 @@ onMounted(() => {
 .cop-rating-dot.good { background: #2563eb; }
 .cop-rating-dot.fair { background: #d97706; }
 .cop-rating-dot.poor { background: #dc2626; }
+.cop-rating-dot.missing { background: #94a3b8; }
 
 .cop-rating {
   display: flex;
@@ -817,6 +848,7 @@ onMounted(() => {
 .cop-tier-badge.good { background: #eff6ff; color: #2563eb; }
 .cop-tier-badge.fair { background: #fffbeb; color: #d97706; }
 .cop-tier-badge.poor { background: #fef2f2; color: #dc2626; }
+.cop-tier-badge.missing { background: #f1f5f9; color: #64748b; }
 
 /* Skeleton */
 .sk-line {

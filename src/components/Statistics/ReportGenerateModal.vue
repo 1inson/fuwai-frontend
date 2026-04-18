@@ -47,7 +47,7 @@
           <div class="toggle-row">
             <div>
               <strong>生成时附带 AI 摘要</strong>
-              <small>生成成功后会在统计页报表工作台中自动打开详情。</small>
+              <small>提交后会立即进入报表工作台，AI 摘要会在后台生成完成后展示。</small>
             </div>
             <label class="toggle-switch">
               <input v-model="form.includeAI" type="checkbox" />
@@ -177,7 +177,7 @@ const submit = async () => {
       throw new Error('生成报表失败：未返回 report_id')
     }
 
-    notice.value = { type: 'ok', text: '报表任务已创建，正在跳转到统计页工作台。' }
+    notice.value = { type: 'ok', text: '报表任务已创建，正在后台生成。' }
     emit('generated', {
       reportId,
       context: {

@@ -1,5 +1,7 @@
 import request from '../utils/request'
 
+const STATISTICS_QUERY_TIMEOUT = 120000
+
 // ─── Types: Common ───────────────────────────────────────────────
 export interface TimeRange {
     start: string
@@ -106,7 +108,7 @@ const normalizeEnergyParams = (params?: EnergyQueryParams) => {
 export const getEnergyQuery = (params?: EnergyQueryParams) => {
     return request.get<EnergyQueryResponse>('/energy/query', {
         params: normalizeEnergyParams(params),
-        timeout: 30000
+        timeout: STATISTICS_QUERY_TIMEOUT
     })
 }
 
@@ -114,7 +116,7 @@ export const getEnergyQuery = (params?: EnergyQueryParams) => {
 export const getCopAnalysis = (params?: CopAnalysisParams) => {
     return request.get<CopAnalysisResponse>('/energy/cop', {
         params: { ...params },
-        timeout: 30000
+        timeout: STATISTICS_QUERY_TIMEOUT
     })
 }
 
@@ -122,7 +124,7 @@ export const getCopAnalysis = (params?: CopAnalysisParams) => {
 export const getEnergyTrendData = (params?: EnergyTrendParams) => {
     return request.get<EnergyTrendResponse>('/energy/trend', {
         params: { ...params },
-        timeout: 30000
+        timeout: STATISTICS_QUERY_TIMEOUT
     })
 }
 
@@ -210,7 +212,7 @@ export interface BuildingDetailResponse {
 export const getBuildings = (params?: BuildingListParams) => {
     return request.get<BuildingListResponse>('/buildings', {
         params: { ...params },
-        timeout: 30000
+        timeout: STATISTICS_QUERY_TIMEOUT
     })
 }
 
@@ -225,7 +227,7 @@ export const getBuildingById = (buildingId: string) => {
 export const getMeters = (params?: MeterListParams) => {
     return request.get<MeterListResponse>('/meters', {
         params: { ...params },
-        timeout: 30000
+        timeout: STATISTICS_QUERY_TIMEOUT
     })
 }
 
@@ -271,7 +273,7 @@ export interface BuildingEnergySummaryResponse {
 export const getBuildingEnergySummary = (buildingId: string, params?: BuildingEnergySummaryParams) => {
     return request.get<BuildingEnergySummaryResponse>(`/buildings/${buildingId}/energy/summary`, {
         params: { ...params },
-        timeout: 30000
+        timeout: STATISTICS_QUERY_TIMEOUT
     })
 }
 
@@ -440,8 +442,8 @@ export interface DeleteReportResponse {
 /** 1. 创建报表生成任务 */
 export const generateReport = (data: GenerateReportRequest) => {
     return request.post<GenerateReportResponse>('/reports/generate', data, {
-        // AI 总结和报表生成通常非常耗时，放宽至 120 秒
-        timeout: 120000
+        // 后端只创建任务并立即返回 report_id，实际生成在后台执行。
+        timeout: 30000
     })
 }
 
