@@ -537,6 +537,13 @@ import {
   type BuildingDetailResponse as ApiBuildingDetailResponse, 
   getBuildingEnergySummary
 } from '../../api/statistics';
+const rawData = ref({
+  buildingDetail: null as any,
+  energySummary: null as any,
+  categoryEnergy: null as any,  // 这个字段存储分类能耗数据
+  copEui: null as any
+});
+
 
 // ===== 扩展接口定义以解决类型问题 =====
 interface BuildingInfo {
@@ -809,10 +816,37 @@ const currentEnvDetail = computed<WeatherData>(() => {
 
 const hasEnvData = computed(() => Object.keys(currentEnvDetail.value).length > 0);
 
-const handleViewEnergy = (item: HourlyDataItem) => {
+const handleViewEnergy = async (item: HourlyDataItem) => {
   currentEnergyItem.value = item;
   showEnergyModal.value = true;
+  
+  // 弹窗内并发加载该小时所有8种表计类型
+  const meterTypes = ['electricity', 'hotwater', 'chilledwater', 'irrigation', 'solar', 'gas', 'steam', 'water'];
+  const hour = item.hour.split(':')[0];
+  const startStr = `${selectedDay.value}T${hour}:00:00`;
+  const endStr = `${selectedDay.value}T${hour}:59:59`;
+  
+  const results: Record<string, number> = {};
+  await Promise.all(
+    meterTypes.map(type => 
+      getBuildingEnergySummary(buildingId.value, {
+        meter: type as any,
+        granularity: 'hour',
+        start_time: startStr,
+        end_time: endStr
+      })
+        .then(raw => {
+          const data = (raw as any)?.data ?? raw;
+          const total = data?.summary?.total ?? 0;
+          if (total > 0) results[type] = total;
+        })
+        .catch(() => {})
+    )
+  );
+  
+  currentEnergyItem.value = { ...item, energyData: results };
 };
+
 
 const handleViewEnv = async (item: HourlyDataItem) => {
   currentEnvItem.value = item;
@@ -955,9 +989,99 @@ const derivedData = computed(() => {
   };
 });
 
-const handleEnergyCategoryChange = async () => {
-  // 原有逻辑
+const getSettingPageTime = () => {
+  const virtualTime = localStorage.getItem('virtualSystemTime');
+  if (virtualTime) return new Date(virtualTime).toISOString();
+  return new Date().toISOString();
 };
+
+// 计算时间范围（用于衍生数据统计周期）
+const calculateTimeRange = (range: string) => {
+  const now = new Date(currentSystemTime.value);
+  const formatDateTime = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  let start = new Date(now);
+  let end = new Date(now);
+  
+  switch(range) {
+    case 'today':
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'week':
+      const day = start.getDay() || 7;
+      start.setDate(start.getDate() - day + 1);
+      start.setHours(0, 0, 0, 0);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'month':
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(end.getMonth() + 1, 0);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'quarter':
+      const quarter = Math.floor(start.getMonth() / 3);
+      start.setMonth(quarter * 3, 1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(quarter * 3 + 3, 0);
+      end.setHours(23, 59, 59, 999);
+      break;
+    case 'year':
+      start.setMonth(0, 1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(11, 31);
+      end.setHours(23, 59, 59, 999);
+      break;
+    default:
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(end.getMonth() + 1, 0);
+      end.setHours(23, 59, 59, 999);
+  }
+  
+  return {
+    start_time: formatDateTime(start) + ' 00:00:00',
+    end_time: formatDateTime(end) + ' 23:59:59'
+  };
+};
+
+// 确保 currentSystemTime 也存在
+const currentSystemTime = ref(getSettingPageTime());
+
+// 获取特定类别的能耗数据
+const fetchCategoryEnergy = async () => {
+  try {
+    const { start_time, end_time } = calculateTimeRange(timeRange.value);
+    
+    const response = await axios.post('/api/energy/query', {
+      buildingId: buildingId.value,
+      energyType: energyCategory.value,  // 当前选中的类别：电力/热水/冷冻水等
+      startTime: start_time,
+      endTime: end_time
+    });
+    
+    rawData.value.categoryEnergy = response.data?.data || response.data;
+  } catch (err) {
+    console.error('获取分类能耗失败:', err);
+    rawData.value.categoryEnergy = null;
+  }
+};
+
+const handleEnergyCategoryChange = async () => {
+  // 调用上面定义的函数获取新类别的数据
+  await fetchCategoryEnergy();
+  
+  // derivedData 是计算属性，会自动根据 energyCategory 重新计算
+  // 不需要手动更新
+};
+
 
 const handleExport = (exportConfig: { format: string }) => {
   console.log('导出配置：', exportConfig);
