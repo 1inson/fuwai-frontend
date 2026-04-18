@@ -342,24 +342,105 @@ const fetchBuildingList = async () => {
       params.status = filterForm.value.status;
     }
     
+    // 1. 获取建筑基础列表
     const response = await axios.get('/api/buildings', { params });
     
-    // 【修改】兼容后端返回的 {items, pagination} 格式
+    let basicList: any[] = [];
     if (response.data?.items && Array.isArray(response.data.items)) {
-      // 后端返回格式：{items: [...], pagination: {total: ...}}
-      buildingList.value = response.data.items;
-      pagination.value.total = response.data.pagination?.total || response.data.items.length;
+      basicList = response.data.items;
+      pagination.value.total = response.data.pagination?.total || 0;
     } else if (Array.isArray(response.data)) {
-      // 直接返回数组
-      buildingList.value = response.data;
+      basicList = response.data;
       pagination.value.total = response.data.length;
     } else if (response.data?.code === 200) {
-      // 标准格式 {code: 200, data: [...], total: ...}
-      buildingList.value = response.data.data || [];
+      basicList = response.data.data || [];
       pagination.value.total = response.data.total || 0;
-    } else {
-      console.warn('后端返回格式异常:', response.data);
     }
+
+    // 2. 为每个建筑获取详细能耗数据（并发请求）
+    const detailedBuildings = await Promise.all(
+      basicList.map(async (building: any) => {
+        const buildingId = building.building_id || building.id || building.buildingId;
+        if (!buildingId) return building;
+
+        try {
+          // 并行获取三个接口数据
+          const [energyRes, euiRes, carbonRes] = await Promise.allSettled([
+            // 总能耗（建筑级能耗摘要）
+            axios.get(`/api/buildings/${buildingId}/energy/summary`, {
+              params: { start_time, end_time },
+              timeout: 8000
+            }).catch(() => null),
+            
+            // EUI 计算结果
+            axios.get('/api/energy/cop', {
+              params: { building_id: buildingId, start_time, end_time },
+              timeout: 8000
+            }).catch(() => null),
+            
+            // 碳排放（gas 类型）
+            axios.get('/api/energy/query', {
+              params: { 
+                meter_type: 'gas', 
+                building_id: buildingId, 
+                start_time, 
+                end_time 
+              },
+              timeout: 8000
+            }).catch(() => null)
+          ]);
+
+          // 处理总能耗（求和电力、热水、冷冻水等）
+          let totalEnergy = 0;
+          if (energyRes.status === 'fulfilled' && energyRes.value) {
+            const data = energyRes.value.data?.data || energyRes.value.data || {};
+            // 汇总所有能耗类型（根据后端实际字段调整）
+            const types = ['electricity', 'water', 'gas', 'steam', 'chilledwater', 'hotwater', 'irrigation', 'solar'];
+            totalEnergy = types.reduce((sum, type) => {
+              return sum + (data[type] || data[`${type}_energy`] || 0);
+            }, 0);
+          }
+
+          // 处理 EUI
+          let eui = 0;
+          if (euiRes.status === 'fulfilled' && euiRes.value) {
+            const data = euiRes.value.data?.data || euiRes.value.data || {};
+            eui = data.eui || data.cop || data.value || 0;
+          }
+
+          // 处理碳排放
+          let carbon = 0;
+          if (carbonRes.status === 'fulfilled' && carbonRes.value) {
+            const data = carbonRes.value.data?.data || carbonRes.value.data || {};
+            carbon = data.total || data.value || data.carbon || 0;
+          }
+
+          return {
+            ...building,
+            id: buildingId,
+            buildingId: buildingId,
+            energy: totalEnergy,
+            eui: eui,
+            carbon: carbon,
+            // 保留原有字段映射
+            site: building.site || building.device_count || '0 个设备'
+          };
+
+        } catch (err) {
+          console.error(`获取建筑 ${buildingId} 详细数据失败:`, err);
+          return {
+            ...building,
+            id: buildingId,
+            buildingId: buildingId,
+            energy: 0,
+            eui: 0,
+            carbon: 0
+          };
+        }
+      })
+    );
+
+    buildingList.value = detailedBuildings;
 
   } catch (error: any) {
     console.error('获取建筑列表失败:', error);
