@@ -682,34 +682,58 @@ const getLeedClass = (level: string | undefined): string => {
   return '';
 };
 
-// ===== 核心：获取小时级数据（修正类型）=====
+// ===== 核心：获取小时级数据（修复：查询所有表计类型）=====
 const fetchHourlyData = async () => {
   if (!buildingId.value || !selectedDay.value) return;
   hourlyLoading.value = true;
   hourlyData.value = [];
 
   try {
-    // 【修复】复用原代码逻辑：24个并发请求，每小时单独查 electricity 作为代表
-    const energyPromises = Array.from({ length: 24 }, (_, i) => {
+    // 所有表计类型（根据你的 meterTypeMap）
+    const meterTypes = ['electricity', 'hotwater', 'chilledwater', 'steam', 'irrigation', 'solar', 'gas', 'water'];
+    
+    // 每小时并发查询所有表计类型
+    const hourlyPromises = Array.from({ length: 24 }, (_, i) => {
       const hh = String(i).padStart(2, '0');
       const startStr = `${selectedDay.value}T${hh}:00:00`;
       const endStr = `${selectedDay.value}T${hh}:59:59`;
-      return getBuildingEnergySummary(buildingId.value, {
-        meter: 'electricity' as any,
-        granularity: 'hour',
-        start_time: startStr,
-        end_time: endStr
-      })
-        .then(raw => {
-          const data = (raw as any)?.data ?? raw;
-          const total = data?.summary?.total ?? 0;
-          return { 
-            hour: i, 
-            hasEnergy: total > 0, 
-            summary: data?.summary || {} 
-          };
-        })
-        .catch(() => ({ hour: i, hasEnergy: false, summary: {} }));
+      
+      // 并发查询该小时的所有表计类型
+      return Promise.all(
+        meterTypes.map(type => 
+          getBuildingEnergySummary(buildingId.value, {
+            meter: type as any,
+            granularity: 'hour',
+            start_time: startStr,
+            end_time: endStr
+          })
+            .then(raw => {
+              const data = (raw as any)?.data ?? raw;
+              return {
+                type,
+                total: data?.summary?.total ?? 0
+              };
+            })
+            .catch(() => ({ type, total: 0 }))
+        )
+      ).then(results => {
+        // 汇总该小时所有表计数据
+        const summary: Record<string, number> = {};
+        let hasAnyEnergy = false;
+        
+        results.forEach(({ type, total }) => {
+          if (total > 0) {
+            summary[type] = total;
+            hasAnyEnergy = true;
+          }
+        });
+        
+        return {
+          hour: i,
+          hasEnergy: hasAnyEnergy,
+          summary // 包含该小时所有表计类型的数据
+        };
+      });
     });
 
     // 【修复】环境数据：查全天，再按小时匹配
@@ -717,32 +741,41 @@ const fetchHourlyData = async () => {
     try {
       const weatherRes = await axios.get('/api/energy/weather', {
         params: {
-          building_ids: buildingId.value, // 改为复数形式
+          building_ids: buildingId.value,
           start_time: `${selectedDay.value}T00:00:00`,
           end_time: `${selectedDay.value}T23:59:59`,
-          granularity: 'hour' // 添加粒度参数
+          granularity: 'hour'
         },
         timeout: 10000
       });
       
       const weatherData = weatherRes.data?.data ?? weatherRes.data;
       
-      // 根据图4的返回结构解析：series[0].points 数组
+      // 解析返回的环境数据（确保包含所有字段：temperature, cloudCover, precipitation, windSpeed, dewPoint, pressure, windDirection）
       if (weatherData?.series && Array.isArray(weatherData.series)) {
         const series = weatherData.series.find((s: any) => s.building_id === buildingId.value);
         if (series?.points && Array.isArray(series.points)) {
           series.points.forEach((point: any) => {
             const h = new Date(point.timestamp || point.time).getHours();
-            if (!isNaN(h)) weatherMap[h] = point;
-          });
-        }
-      } else if (weatherData?.data?.series) {
-        // 兼容嵌套在 data 字段的情况
-        const series = weatherData.data.series.find((s: any) => s.building_id === buildingId.value);
-        if (series?.points) {
-          series.points.forEach((point: any) => {
-            const h = new Date(point.timestamp || point.time).getHours();
-            if (!isNaN(h)) weatherMap[h] = point;
+            if (!isNaN(h)) {
+              // 确保存储完整的点数据，包含所有环境字段
+              weatherMap[h] = {
+                temperature: point.temperature,
+                cloudCover: point.cloudCover,
+                cloud_cover: point.cloud_cover,
+                precipitation: point.precipitation,
+                rain: point.rain,
+                windSpeed: point.windSpeed,
+                wind_speed: point.wind_speed,
+                dewPoint: point.dewPoint,
+                dew_point: point.dew_point,
+                pressure: point.pressure,
+                seaLevelPressure: point.seaLevelPressure,
+                windDirection: point.windDirection,
+                wind_direction: point.wind_direction,
+                ...point // 保留原始所有字段
+              };
+            }
           });
         }
       }
@@ -750,7 +783,7 @@ const fetchHourlyData = async () => {
       console.error('环境数据获取失败:', e);
     }
 
-    const energyResults = await Promise.all(energyPromises);
+    const energyResults = await Promise.all(hourlyPromises);
 
     // 组装24小时数据
     hourlyData.value = energyResults.map((er: any, i: number) => {
@@ -759,9 +792,9 @@ const fetchHourlyData = async () => {
         hour: `${hh}:00`,
         displayTime: `${selectedDay.value} ${hh}:00`,
         time: `${selectedDay.value}T${hh}:00:00`,
-        energyData: er.summary,
+        energyData: er.summary, // 现在包含所有表计类型数据
         envData: weatherMap[i] || {},
-        hasEnergy: er.hasEnergy,
+        hasEnergy: er.hasEnergy, // 任意类型有数据即为true
         hasEnv: !!weatherMap[i] && Object.keys(weatherMap[i]).length > 0
       };
     });
@@ -771,7 +804,6 @@ const fetchHourlyData = async () => {
     hourlyLoading.value = false;
   }
 };
-
 
 // ===== 分页计算 =====
 const totalCount = computed(() => hourlyData.value.length);
