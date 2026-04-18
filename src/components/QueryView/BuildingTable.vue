@@ -25,31 +25,89 @@
           </tr>
         </thead>
         <tbody>
-  <!-- 加载状态 -->
-  <tr v-if="props.loading" class="loading-row">
-    <td :colspan="props.isExportMode ? 8 : 7" class="loading-cell">
-      <div class="loading-content">
-        <div class="loading-spinner"></div>
-        <span>数据加载中...</span>
-      </div>
-    </td>
-  </tr>
-  
-  <!-- 空状态 -->
-  <tr v-else-if="!props.buildingList || props.buildingList.length === 0" class="empty-row">
-    <td :colspan="props.isExportMode ? 8 : 7" class="empty-cell">
-      <div class="empty-content">
-        <p>暂无建筑运行数据</p>
-      </div>
-    </td>
-  </tr>
-  
-  <!-- 数据列表 - 关键修改：使用 props.buildingList -->
-  <tr v-else v-for="item in props.buildingList" :key="item.id">
-    <!-- 原有的列... -->
-  </tr>
-</tbody>
-
+          <!-- 加载状态 -->
+          <tr v-if="props.loading" class="loading-row">
+            <td :colspan="props.isExportMode ? 8 : 7" class="loading-cell">
+              <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <span>数据加载中...</span>
+              </div>
+            </td>
+          </tr>
+          
+          <!-- 空状态 -->
+          <tr v-else-if="!props.buildingList || props.buildingList.length === 0" class="empty-row">
+            <td :colspan="props.isExportMode ? 8 : 7" class="empty-cell">
+              <div class="empty-content">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="9" y1="9" x2="15" y2="9"></line>
+                  <line x1="9" y1="13" x2="15" y2="13"></line>
+                  <line x1="9" y1="17" x2="11" y2="17"></line>
+                </svg>
+                <p>暂无建筑运行数据</p>
+              </div>
+            </td>
+          </tr>
+          
+          <!-- 数据列表 -->
+          <tr v-else v-for="item in props.buildingList" :key="item.id" :class="{ 'selected-row': props.isExportMode && selectedIds.has(item.id) }">
+            <!-- 导出模式显示多选框 -->
+            <td v-if="props.isExportMode" class="checkbox-column">
+              <input 
+                type="checkbox" 
+                :value="item.id"
+                :checked="selectedIds.has(item.id)"
+                @change="toggleSelection(item.id)"
+                class="custom-checkbox"
+              />
+            </td>
+            <td>
+              <div class="building-id">{{ item.buildingId }}</div>
+            </td>
+            <td>
+              <div class="site">{{ item.site }}</div>
+            </td>
+            <td class="text-right">
+              <div class="energy">{{ item.energy?.toLocaleString() || 0 }}</div>
+              <div class="unit">kWh</div>
+            </td>
+            <td class="text-right">{{ item.eui || 0 }}</td>
+            <td class="text-right">{{ item.carbon || 0 }}</td>
+            <td class="text-center">
+              <!-- 使用复用的状态组件 -->
+              <StatusBadge 
+                :status="item.status" 
+                :custom-text="item.statusText"
+                size="md"
+              />
+            </td>
+            <td class="text-right">
+              <div class="actions">
+                <button class="action-btn blue" @click="handleView(item)" title="查看详情">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+                <button class="action-btn green" @click="handleStats(item)" title="统计数据">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                  </svg>
+                </button>
+                <button class="action-btn orange" @click="handleFault(item)" title="故障分析">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
       </table>
 
       <!-- 分页栏 -->
@@ -59,23 +117,36 @@
             已选择 <strong>{{ selectedIds.size }}</strong> 个建筑
           </template>
           <template v-else>
-            显示第 {{ displayStart }}-{{ displayEnd }} 条，共 {{ pagination.total }} 条建筑运行记录
+            显示第 {{ displayStart }}-{{ displayEnd }} 条，共 {{ props.pagination?.total || 0 }} 条建筑运行记录
           </template>
         </div>
         
         <div class="pagination-right">
           <div class="pagination-controls">
-            <button class="page-btn nav-btn" :disabled="pagination.currentPage === 1" @click="onPageChange(pagination.currentPage - 1)">
+            <button 
+              class="page-btn nav-btn" 
+              :disabled="(props.pagination?.current || 1) === 1" 
+              @click="onPageChange((props.pagination?.current || 1) - 1)"
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
             </button>
 
-            <button v-for="page in visiblePages" :key="page" :class="['page-btn', { active: page === pagination.currentPage }]" @click="onPageChange(page)">
+            <button 
+              v-for="page in visiblePages" 
+              :key="page" 
+              :class="['page-btn', { active: page === props.pagination?.current }]" 
+              @click="onPageChange(page)"
+            >
               {{ page }}
             </button>
 
-            <button class="page-btn nav-btn" :disabled="pagination.currentPage === totalPages" @click="onPageChange(pagination.currentPage + 1)">
+            <button 
+              class="page-btn nav-btn" 
+              :disabled="(props.pagination?.current || 1) >= totalPages" 
+              @click="onPageChange((props.pagination?.current || 1) + 1)"
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
@@ -88,36 +159,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from 'vue'
-import axios from 'axios'
+import { computed, ref, watch } from 'vue'
 import StatusBadge from './StatusBadge.vue'
-
-// ===== 类型定义 =====
-interface TableItem {
-  id: string
-  buildingId: string
-  site: string
-  energy: number
-  eui: number
-  carbon: number
-  // 扩展为联合类型，兼容两种命名方式
-  status: 'online' | 'warning' | 'fault' | 'offline' | 'normal'
-  statusText: string
-}
-
-interface PaginationInfo {
-  currentPage: number
-  pageSize: number
-  total: number
-}
 
 // ===== Props & Emits =====
 const props = defineProps<{
-  // 【新增】这两个是必须的
-  buildingList?: any[]      // 接收父组件传来的建筑列表
-  loading?: boolean          // 接收父组件的加载状态
-  
-  // 原有 props 保留
+  buildingList?: any[]      
+  loading?: boolean          
+  pagination?: {
+    current: number
+    pageSize: number  
+    total: number
+  }
   filterForm?: {
     status?: string,
     timeRange?: string
@@ -128,214 +181,59 @@ const props = defineProps<{
   isExportMode?: boolean
 }>()
 
-
 const emit = defineEmits([
   'view-detail', 
   'view-stats', 
   'fault-analysis', 
   'export-data',
-  'selection-change'
+  'selection-change',
+  'page-change'
 ])
 
 // ===== 响应式数据 =====
-const buildings = ref<TableItem[]>([])
-const pagination = ref<PaginationInfo>({ currentPage: 1, pageSize: 7, total: 0 })
-const loading = ref(false)
+// 只保留选中状态（用于导出模式）
 const selectedIds = ref<Set<string>>(new Set())
 
-// ===== 工具函数 =====
-import { useTimeManager } from '../../utils/timeManager'
-const { getCurrentTimeString } = useTimeManager()
+// ===== 计算属性 =====
+const totalPages = computed(() => {
+  const total = props.pagination?.total || 0
+  const pageSize = props.pagination?.pageSize || 7
+  return Math.ceil(total / pageSize) || 1
+})
 
-const getCurrentTime = () => new Date(getCurrentTimeString())
+const displayStart = computed(() => {
+  if (!props.pagination || props.pagination.total === 0) return 0
+  return (props.pagination.current - 1) * props.pagination.pageSize + 1
+})
 
-// 删除 getStatusText 函数 - 不再需要，由 StatusBadge 组件处理
-// 删除 mapStatusToClass 函数 - 不再需要，由 StatusBadge 组件处理
+const displayEnd = computed(() => {
+  if (!props.pagination || props.pagination.total === 0) return 0
+  return Math.min(props.pagination.current * props.pagination.pageSize, props.pagination.total)
+})
 
-// 只需确保数据转换时设置正确的状态文本
-// 注意：item.statusText 已经在 TableItem 接口中定义
+const visiblePages = computed(() => {
+  const pages: number[] = []
+  const maxVisible = 5
+  const current = props.pagination?.current || 1
+  const total = totalPages.value
+  let start = Math.max(1, current - Math.floor(maxVisible / 2))
+  let end = Math.min(total, start + maxVisible - 1)
+  if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1)
+  for (let i = start; i <= end; i++) pages.push(i)
+  return pages
+})
 
-const safeGetArray = (data: any): any[] => {
-  if (Array.isArray(data)) return data
-  if (data?.data && Array.isArray(data.data)) return data.data
-  if (data?.items && Array.isArray(data.items)) return data.items
-  if (data?.list && Array.isArray(data.list)) return data.list
-  return []
-}
+const isAllSelected = computed(() => {
+  const list = props.buildingList || []
+  return list.length > 0 && list.every(item => selectedIds.value.has(item.id))
+})
 
-// ===== 数据获取方法 =====
-const calculateTimeRange = (range: string) => {
-  const now = getCurrentTime()
-  let start = new Date(now)
-  const year = now.getFullYear(), month = now.getMonth(), date = now.getDate(), day = now.getDay()
-  
-  switch (range) {
-    case 'today': start = new Date(year, month, date, 0, 0, 0); break
-    case 'week': start = new Date(year, month, date - (day === 0 ? 6 : day - 1), 0, 0, 0); break
-    case 'month': start = new Date(year, month, 1, 0, 0, 0); break
-    case 'quarter': start = new Date(year, Math.floor(month / 3) * 3, 1, 0, 0, 0); break
-    case 'year': start = new Date(year, 0, 1, 0, 0, 0); break
-  }
-  return { start_time: start.toISOString(), end_time: now.toISOString() }
-}
+const isIndeterminate = computed(() => {
+  const list = props.buildingList || []
+  return selectedIds.value.size > 0 && selectedIds.value.size < list.length
+})
 
-const fetchEnergySummary = async (buildingId: string, timeRange: any) => {
-  try {
-    const response = await axios.get(`/api/buildings/${buildingId}/energy/summary`, {
-      params: { start_time: timeRange.start_time, end_time: timeRange.end_time },
-      timeout: 8000
-    })
-    const data = response.data?.data || response.data
-    if (data && typeof data === 'object') {
-      const types = ['electricity', 'water', 'gas', 'steam', 'chilledwater', 'hotwater', 'irrigation', 'solar']
-      return types.reduce((sum, type) => sum + (data[type] || data[`${type}_energy`] || 0), 0)
-    }
-    return 0
-  } catch (error) {
-    console.error(`获取建筑 ${buildingId} 能耗摘要失败:`, error)
-    return 0
-  }
-}
-
-const fetchEUI = async (buildingId: string, timeRange: any) => {
-  try {
-    const response = await axios.get('/api/energy/cop', {
-      params: { building_id: buildingId, start_time: timeRange.start_time, end_time: timeRange.end_time },
-      timeout: 8000
-    })
-    const data = response.data?.data || response.data
-    return data?.eui || data?.cop || data?.value || 0
-  } catch (error) {
-    console.error(`获取建筑 ${buildingId} EUI失败:`, error)
-    return 0
-  }
-}
-
-const fetchCarbon = async (buildingId: string, timeRange: any) => {
-  try {
-    const response = await axios.get('/api/energy/query', {
-      params: { meter_type: 'gas', building_id: buildingId, start_time: timeRange.start_time, end_time: timeRange.end_time },
-      timeout: 8000
-    })
-    const data = response.data?.data || response.data
-    return data?.total || data?.value || 0
-  } catch (error) {
-    console.error(`获取建筑 ${buildingId} 碳排放失败:`, error)
-    return 0
-  }
-}
-
-const fetchBuildings = async () => {
-  loading.value = true
-  
-  try {
-    // 1. 获取建筑列表
-    const buildingsRes = await axios.get('/api/buildings', { 
-      params: {
-        page: pagination.value.currentPage,
-        page_size: pagination.value.pageSize,
-        status: props.filterForm?.status || undefined,
-        building_id: props.advancedFilters?.buildingId || undefined,
-        site: props.advancedFilters?.site || undefined,
-        sort_field: props.sortConfig?.field || undefined,
-        sort_order: props.sortConfig?.order || undefined
-      },
-      timeout: 10000
-    })
-    
-    let buildingList = safeGetArray(buildingsRes.data)
-    const returnedTotal = buildingsRes.data?.total ?? buildingsRes.data?.total_count ?? buildingsRes.data?.meta?.total ?? buildingsRes.data?.pagination?.total
-    
-    // 【关键修复】前端二次过滤：确保只显示匹配状态的建筥
-    if (props.filterForm?.status && buildingList.length > 0) {
-      buildingList = buildingList.filter((building: any) => {
-        const buildingStatus = building.status || building.building_status || building.state
-        // 匹配后端返回的状态（支持英文和中文）
-        return buildingStatus === props.filterForm?.status
-      })
-    }
-    
-    pagination.value.total = returnedTotal !== undefined && returnedTotal !== null ? returnedTotal : buildingList.length
-
-    if (!buildingList.length) {
-      buildings.value = []
-      loading.value = false
-      return
-    }
-
-    // 2. 获取每个建筑的详细数据
-    const detailedBuildings = await Promise.all(
-      buildingList.map(async (building: any) => {
-        const buildingId = building.building_id || building.id || building.buildingId
-        if (!buildingId) return null
-        
-        try {
-          // 【修改】直接获取原始状态，不再调用 mapStatusToClass
-          const rawStatus = building.status || building.state || building.building_status || 'offline'
-          
-          // 获取能耗数据（保持原有逻辑）
-          const timeRange = calculateTimeRange(props.timeRange || 'today')
-          const [totalEnergy, eui, carbon] = await Promise.all([
-            fetchEnergySummary(buildingId, timeRange),
-            fetchEUI(buildingId, timeRange),
-            fetchCarbon(buildingId, timeRange)
-          ])
-          
-          // 获取设备数量（仅用于显示，不影响状态）
-          const metersListRes = await axios.get('/api/meters', {
-            params: { building_id: buildingId },
-            timeout: 5000
-          }).catch(() => ({ data: [] }))
-          const metersList = safeGetArray(metersListRes.data)
-          const deviceCount = metersList.length
-
-          return {
-            id: buildingId,
-            buildingId: buildingId,
-            site: deviceCount > 0 ? `${deviceCount} 个设备` : '无设备',
-            energy: totalEnergy,
-            eui: eui,
-            carbon: carbon,
-            status: rawStatus as TableItem['status'],  // 【修改】直接传原始值
-            statusText: ''  // 【修改】留空，让 StatusBadge 组件自动根据状态显示文本
-          }
-
-        } catch (err) {
-          console.error(`处理建筑 ${buildingId} 数据时出错:`, err)
-          return null
-        }
-      })
-    )
-
-    let validBuildings = detailedBuildings.filter(item => item !== null) as TableItem[]
-    
-    // 按系统状态排序
-    if (props.sortConfig?.field === 'status') {
-      const statusWeight: Record<string, number> = { 
-        'fault': 4,
-        'warning': 3,
-        'offline': 2,
-        'online': 1
-      }
-      validBuildings.sort((a, b) => {
-        const weightA = statusWeight[a.status] ?? 0
-        const weightB = statusWeight[b.status] ?? 0
-        const order = props.sortConfig?.order === 'asc' ? 1 : -1
-        return (weightA - weightB) * order
-      })
-    }
-    
-    buildings.value = validBuildings
-    
-  } catch (error: any) {
-    console.error('获取建筑列表失败:', error)
-    buildings.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
-// ===== 导出模式方法 =====
+// ===== 方法 =====
 const toggleSelection = (id: string) => {
   if (selectedIds.value.has(id)) {
     selectedIds.value.delete(id)
@@ -346,71 +244,33 @@ const toggleSelection = (id: string) => {
 }
 
 const toggleSelectAll = () => {
+  const list = props.buildingList || []
   if (isAllSelected.value) {
     selectedIds.value.clear()
   } else {
-    buildings.value.forEach(item => selectedIds.value.add(item.id))
+    list.forEach(item => selectedIds.value.add(item.id))
   }
   selectedIds.value = new Set(selectedIds.value)
 }
 
-// ===== 事件处理 =====
-const handleView = (item: TableItem) => {
+const handleView = (item: any) => {
   emit('view-detail', item)
 }
 
-const handleStats = (item: TableItem) => {
+const handleStats = (item: any) => {
   emit('view-stats', item)
 }
 
-const handleFault = (item: TableItem) => {
+const handleFault = (item: any) => {
   emit('fault-analysis', item)
 }
 
-// ===== 计算属性 =====
-const totalPages = computed(() => Math.ceil(pagination.value.total / pagination.value.pageSize) || 1)
-const displayStart = computed(() => pagination.value.total === 0 ? 0 : (pagination.value.currentPage - 1) * pagination.value.pageSize + 1)
-const displayEnd = computed(() => {
-  if (pagination.value.total === 0 && buildings.value.length === 0) return 0
-  return Math.min(pagination.value.currentPage * pagination.value.pageSize, pagination.value.total || buildings.value.length)
-})
+const onPageChange = (page: number) => {
+  emit('page-change', page)
+}
 
-const visiblePages = computed(() => {
-  const pages: number[] = []
-  const maxVisible = 5
-  const current = pagination.value.currentPage
-  const total = totalPages.value
-  let start = Math.max(1, current - Math.floor(maxVisible / 2))
-  let end = Math.min(total, start + maxVisible - 1)
-  if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1)
-  for (let i = start; i <= end; i++) pages.push(i)
-  return pages
-})
-
-const isAllSelected = computed(() => {
-  return buildings.value.length > 0 && buildings.value.every(item => selectedIds.value.has(item.id))
-})
-
-const isIndeterminate = computed(() => {
-  return selectedIds.value.size > 0 && selectedIds.value.size < buildings.value.length
-})
-
-// ===== 生命周期 & 监听 =====
-onMounted(() => { 
- })
-
-// watch(() => [props.filterForm?.status, props.advancedFilters, props.sortConfig], () => {
-//   pagination.value.currentPage = 1
-//   fetchBuildings()
-// }, { deep: true })
-
-// watch(() => pagination.value.currentPage, () => { fetchBuildings() })
-// watch(() => props.timeRange, () => { 
-//   pagination.value.currentPage = 1
-//   fetchBuildings() 
-// }, { immediate: false })
-
-// 监听父组件导出模式变化
+// ===== 监听 =====
+// 监听导出模式变化，退出时清空选择
 watch(() => props.isExportMode, (newVal) => {
   if (!newVal) {
     selectedIds.value.clear()
@@ -421,11 +281,6 @@ watch(() => props.isExportMode, (newVal) => {
 watch(selectedIds, (newVal) => {
   emit('selection-change', Array.from(newVal))
 }, { deep: true })
-
-const onPageChange = (page: number) => {
-  if (page < 1 || page > totalPages.value) return
-  pagination.value.currentPage = page
-}
 
 // 暴露方法给父组件调用
 defineExpose({
@@ -534,8 +389,6 @@ tr:hover {
   color: #9CA3AF;
   margin-top: 2px;
 }
-
-/* 删除所有 status-badge 相关的样式，因为 StatusBadge 组件已经包含这些样式 */
 
 /* ===== 操作按钮 ===== */
 .actions {
