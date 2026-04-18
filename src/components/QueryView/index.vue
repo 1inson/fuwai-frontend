@@ -320,6 +320,8 @@ const timeFilterEnd = computed(() => calculateTimeRange(filterForm.value.timeRan
 
 // ===== [修改10] 核心API方法：获取建筑列表（替换死数据）=====
 const fetchBuildingList = async () => {
+  // 【新增】防止重复请求
+  if (loading.value) return;
   loading.value = true;
   try {
     const { start_time, end_time } = calculateTimeRange(filterForm.value.timeRange);
@@ -342,30 +344,29 @@ const fetchBuildingList = async () => {
     
     const response = await axios.get('/api/buildings', { params });
     
-     // 【修改】兼容后端直接返回数组的情况
+     // 【修改】更健壮的数据处理
     if (Array.isArray(response.data)) {
-      // 后端直接返回数组 [...]
       buildingList.value = response.data;
       pagination.value.total = response.data.length;
-    } else if (response.data && response.data.code === 200) {
-      // 标准格式 { code: 200, data: [...], total: 10 }
-      buildingList.value = response.data.data || [];
-      pagination.value.total = response.data.total || 0;
+    } else if (response.data?.code === 200 || response.data?.success) {
+      buildingList.value = response.data.data || response.data.items || [];
+      pagination.value.total = response.data.total || response.data.pagination?.total || 0;
     } else {
-      console.error('获取建筑列表失败:', response.data?.message || '未知错误');
+      console.warn('后端返回格式异常:', response.data);
     }
 
   } catch (error: any) {
-  // 【修改】安全地获取错误信息
-    const errorMsg = error?.message || error?.response?.data?.message || '请求失败';
-    console.error('获取建筑列表接口错误:', errorMsg, error);
-  // 这里可以添加错误提示toast
-  }
- finally {
+    // 【修改】打印完整错误，便于调试
+    console.error('获取建筑列表失败详情:', {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+      url: error?.config?.url
+    });
+  } finally {
     loading.value = false;
   }
 };
-
 // ===== [新增] 手动刷新方法 =====
 const handleRefresh = async () => {
   // 同时刷新建筑列表和高亮数据

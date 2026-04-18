@@ -444,18 +444,19 @@ const isIndeterminate = computed(() => {
 })
 
 // ===== 生命周期 & 监听 =====
-onMounted(() => { fetchBuildings() })
+onMounted(() => { 
+ })
 
-watch(() => [props.filterForm?.status, props.advancedFilters, props.sortConfig], () => {
-  pagination.value.currentPage = 1
-  fetchBuildings()
-}, { deep: true })
+// watch(() => [props.filterForm?.status, props.advancedFilters, props.sortConfig], () => {
+//   pagination.value.currentPage = 1
+//   fetchBuildings()
+// }, { deep: true })
 
-watch(() => pagination.value.currentPage, () => { fetchBuildings() })
-watch(() => props.timeRange, () => { 
-  pagination.value.currentPage = 1
-  fetchBuildings() 
-}, { immediate: false })
+// watch(() => pagination.value.currentPage, () => { fetchBuildings() })
+// watch(() => props.timeRange, () => { 
+//   pagination.value.currentPage = 1
+//   fetchBuildings() 
+// }, { immediate: false })
 
 // 监听父组件导出模式变化
 watch(() => props.isExportMode, (newVal) => {
