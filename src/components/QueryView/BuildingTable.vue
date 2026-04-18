@@ -244,9 +244,8 @@ const sortRows = (rows: BuildingRow[]) => {
   })
 }
 
-// ===== 核心数据获取逻辑（已修复错误检查） =====
+// ===== 核心数据获取逻辑：批量请求模式 =====
 const fetchData = async () => {
-  // 【修复】删除对 buildingId 的检查，这是列表页不是详情页
   if (!props.startTime || !props.endTime) {
     console.warn('时间参数缺失，跳过数据获取')
     return
@@ -254,94 +253,66 @@ const fetchData = async () => {
   
   loading.value = true
   try {
+    // 1. 获取建筑基础分页列表
     const buildRaw = await getBuildings({
       page: currentPage.value,
-      page_size: pageSize.value
+      page_size: pageSize.value,
+      keyword: props.advancedFilters?.buildingId || undefined,
+      primaryspaceusage: props.advancedFilters?.buildingType?.[0] || undefined
     })
     const buildData = unwrap(buildRaw)
     const items = buildData?.items || []
     paginationInfo.value.total = buildData?.pagination?.total || 0
     
-    // 并发组装每栋建筑的数据
-    const promises = items.map(async (b: any) => {
+    if (items.length === 0) {
+      tableData.value = []
+      return
+    }
+
+    const buildingIds = items.map((b: any) => b.building_id || b.id)
+
+    // 2. 批量获取这一页所有建筑的能耗汇总
+    const energyRaw = await getEnergyQuery({
+      building_ids: buildingIds,
+      meter: 'electricity',
+      start_time: props.startTime,
+      end_time: props.endTime,
+      granularity: 'month',
+      aggregation: 'sum'
+    })
+    
+    const energyData = unwrap(energyRaw)
+    // 【修复】正确初始化 Map 对象
+    const energyMap: Record<string, number> = {}
+    if (Array.isArray(energyData?.items)) {
+      energyData.items.forEach((p: any) => {
+        // 后端可能返回 building_id 或 id，这里做兼容
+        const bid = p.building_id || p.id
+        if (bid) energyMap[bid] = p.value
+      })
+    }
+
+    // 4. 组装最终表格数据
+    const rows = items.map((b: any) => {
       const bid = b.building_id || b.id
-      if (!bid) {
-        console.warn('建筑数据缺少ID:', b)
-        return null
-      }
-      
-      let meterCount = 0
-      let status: BuildingRow['status'] = 'normal'
-      let statusText = '正常运行'
-      
-      try {
-        const meterRaw = await getMeters({ building_id: bid, start_time: props.startTime, end_time: props.endTime, page_size: 100 })
-        const meterData = unwrap(meterRaw)
-        meterCount = meterData?.pagination?.total || 0
-        
-        let hasWarning = false
-        let hasOffline = false
-        const mItems = meterData?.items || []
-        
-        for (const m of mItems) {
-          if (m.status === 'fault') { status = 'fault'; statusText = '故障停机'; break }
-          if (m.status === 'warning') hasWarning = true
-          if (m.status === 'offline') hasOffline = true
-        }
-
-        if (status !== 'fault') {
-          if (hasWarning) {
-            status = 'warning'
-            statusText = '告警状态'
-          } else if (hasOffline || mItems.length === 0) {
-            status = 'warning'
-            statusText = mItems.length === 0 ? '设备未接入' : '部分离线'
-          }
-        }
-      } catch (e) {
-        console.error(`获取设备失败 ${bid}:`, e)
-      }
-      
-      // 查询页只展示电耗口径，碳排也基于同一个 electricity 汇总估算，避免每栋楼重复请求。
-      let energyTotal = 0
-      let carbon = 0
-      try {
-        const energyRaw = await getEnergyQuery({
-          building_ids: [bid],
-          meter: 'electricity',
-          start_time: props.startTime,
-          end_time: props.endTime,
-          granularity: 'month'
-        })
-        const queryData = unwrap(energyRaw)
-        energyTotal = getSummaryTotal(queryData)
-        carbon = energyTotal * CARBON_FACTOR_KG_PER_KWH
-      } catch (e) {
-        console.error(`获取能耗或碳排失败 ${bid}:`, e)
-      }
-
-      carbon = Math.round(carbon * 10) / 10
-      
+      const energyTotal = energyMap[bid] || 0
       const sqm = b.sqm || 1
-      const eui = sqm > 0 ? (energyTotal / sqm) : 0
+      const carbon = energyTotal * CARBON_FACTOR_KG_PER_KWH
       
       return {
         building_id: bid,
-        meterCount,
+        meterCount: b.device_count || 0,
         energyTotal,
-        eui,
-        status,
-        statusText,
-        carbon
+        eui: sqm > 0 ? (energyTotal / sqm) : 0,
+        carbon: Math.round(carbon * 10) / 10,
+        status: b.status || 'normal',
+        statusText: b.status === 'fault' ? '故障停机' : b.status === 'warning' ? '告警状态' : '正常运行'
       } as BuildingRow
     })
 
-    const results = await Promise.all(promises)
-    const currentRows = results.filter((item): item is BuildingRow => item !== null)
-    const statusFilter = props.filterForm?.status
-    tableData.value = sortRows(statusFilter ? currentRows.filter(row => row.status === statusFilter) : currentRows)
+    tableData.value = sortRows(rows)
   } catch (err) {
-    console.error('建筑列表获取失败:', err)
+    console.error('建筑列表批量获取失败:', err)
     tableData.value = []
   } finally {
     loading.value = false
