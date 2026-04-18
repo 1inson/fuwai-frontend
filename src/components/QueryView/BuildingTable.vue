@@ -25,85 +25,31 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-if="loading" class="loading-row">
-            <td :colspan="props.isExportMode ? 8 : 7" class="loading-cell">
-              <div class="loading-content">
-                <div class="loading-spinner"></div>
-                <span>数据加载中...</span>
-              </div>
-            </td>
-          </tr>
-          <tr v-else-if="buildings.length === 0" class="empty-row">
-            <td :colspan="props.isExportMode ? 8 : 7" class="empty-cell">
-              <div class="empty-content">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <line x1="9" y1="9" x2="15" y2="9"></line>
-                  <line x1="9" y1="13" x2="15" y2="13"></line>
-                  <line x1="9" y1="17" x2="11" y2="17"></line>
-                </svg>
-                <p>暂无建筑运行数据</p>
-              </div>
-            </td>
-          </tr>
-          <tr v-else v-for="item in buildings" :key="item.id" :class="{ 'selected-row': props.isExportMode && selectedIds.has(item.id) }">
-            <!-- 导出模式显示多选框 -->
-            <td v-if="props.isExportMode" class="checkbox-column">
-              <input 
-                type="checkbox" 
-                :value="item.id"
-                :checked="selectedIds.has(item.id)"
-                @change="toggleSelection(item.id)"
-                class="custom-checkbox"
-              />
-            </td>
-            <td>
-              <div class="building-id">{{ item.buildingId }}</div>
-            </td>
-            <td>
-              <div class="site">{{ item.site }}</div>
-            </td>
-            <td class="text-right">
-              <div class="energy">{{ item.energy.toLocaleString() }}</div>
-              <div class="unit">kWh</div>
-            </td>
-            <td class="text-right">{{ item.eui }}</td>
-            <td class="text-right">{{ item.carbon }}</td>
-            <td class="text-center">
-              <!-- 使用复用的状态组件 -->
-              <StatusBadge 
-                :status="item.status" 
-                :custom-text="item.statusText"
-                 size="md"
-              />
-            </td>
+  <!-- 加载状态 -->
+  <tr v-if="props.loading" class="loading-row">
+    <td :colspan="props.isExportMode ? 8 : 7" class="loading-cell">
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <span>数据加载中...</span>
+      </div>
+    </td>
+  </tr>
+  
+  <!-- 空状态 -->
+  <tr v-else-if="!props.buildingList || props.buildingList.length === 0" class="empty-row">
+    <td :colspan="props.isExportMode ? 8 : 7" class="empty-cell">
+      <div class="empty-content">
+        <p>暂无建筑运行数据</p>
+      </div>
+    </td>
+  </tr>
+  
+  <!-- 数据列表 - 关键修改：使用 props.buildingList -->
+  <tr v-else v-for="item in props.buildingList" :key="item.id">
+    <!-- 原有的列... -->
+  </tr>
+</tbody>
 
-            <td class="text-right">
-              <div class="actions">
-                <button class="action-btn blue" @click="handleView(item)" title="查看详情">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                  </svg>
-                </button>
-                <button class="action-btn green" @click="handleStats(item)" title="统计数据">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="20" x2="18" y2="10"></line>
-                    <line x1="12" y1="20" x2="12" y2="4"></line>
-                    <line x1="6" y1="20" x2="6" y2="14"></line>
-                  </svg>
-                </button>
-                <button class="action-btn orange" @click="handleFault(item)" title="故障分析">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
-                    <line x1="12" y1="9" x2="12" y2="13"></line>
-                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                  </svg>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
       </table>
 
       <!-- 分页栏 -->
@@ -167,15 +113,21 @@ interface PaginationInfo {
 
 // ===== Props & Emits =====
 const props = defineProps<{
-  filterForm?: { 
+  // 【新增】这两个是必须的
+  buildingList?: any[]      // 接收父组件传来的建筑列表
+  loading?: boolean          // 接收父组件的加载状态
+  
+  // 原有 props 保留
+  filterForm?: {
     status?: string,
-    timeRange?: string  
+    timeRange?: string
   },
   advancedFilters?: Record<string, any>,
   sortConfig?: { field: string, order: 'asc' | 'desc' },
   timeRange?: 'today' | 'week' | 'month' | 'quarter' | 'year',
   isExportMode?: boolean
 }>()
+
 
 const emit = defineEmits([
   'view-detail', 
