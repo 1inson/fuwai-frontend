@@ -165,7 +165,7 @@ interface PaginationInfo {
 const props = defineProps<{
   filterForm?: { 
     status?: string,
-    timeRange?: 'today' | 'week' | 'month' | 'quarter' | 'year'  // 添加这一行
+    timeRange?: string  
   },
   advancedFilters?: Record<string, any>,
   sortConfig?: { field: string, order: 'asc' | 'desc' },
@@ -306,8 +306,18 @@ const fetchBuildings = async () => {
       timeout: 10000
     })
     
-    const buildingList = safeGetArray(buildingsRes.data)
+    let buildingList = safeGetArray(buildingsRes.data)
     const returnedTotal = buildingsRes.data?.total ?? buildingsRes.data?.total_count ?? buildingsRes.data?.meta?.total ?? buildingsRes.data?.pagination?.total
+    
+    // 【关键修复】前端二次过滤：确保只显示匹配状态的建筥
+    if (props.filterForm?.status && buildingList.length > 0) {
+      buildingList = buildingList.filter((building: any) => {
+        const buildingStatus = building.status || building.building_status || building.state
+        // 匹配后端返回的状态（支持英文和中文）
+        return buildingStatus === props.filterForm?.status
+      })
+    }
+    
     pagination.value.total = returnedTotal !== undefined && returnedTotal !== null ? returnedTotal : buildingList.length
 
     if (!buildingList.length) {
@@ -323,52 +333,27 @@ const fetchBuildings = async () => {
         if (!buildingId) return null
         
         try {
-          // 获取设备列表
-          const metersListRes = await axios.get('/api/meters', {
-            params: { building_id: buildingId },
-            timeout: 5000
-          }).catch(err => {
-            console.warn(`获取建筑 ${buildingId} 设备列表失败:`, err.message)
-            return { data: [] }
-          })
+          // 【关键修复】直接使用后端返回的建筑状态，不再查询设备覆盖
+          let topStatus: string = building.status || building.building_status || building.state || 'offline'
           
-          const metersList = safeGetArray(metersListRes.data)
-          const deviceCount = metersList.length
-          
-          // 确定状态
-          let topStatus: string = building.status || 'offline'
-          
-          if (metersList.length > 0) {
-            if (metersList[0].status) {
-              topStatus = metersList[0].status
-            } else {
-              const meterId = metersList[0].meter_id || metersList[0].id || metersList[0].device_id
-              if (meterId) {
-                const meterRes = await axios.get(`/api/meters/${meterId}`, {
-                  timeout: 5000
-                }).catch(err => {
-                  console.warn(`获取设备 ${meterId} 详情失败:`, err.message)
-                  return { data: null }
-                })
-                
-                const meterData = meterRes.data?.meter || meterRes.data
-                if (meterData && meterData.status) {
-                  topStatus = meterData.status
-                }
-              }
-            }
-          }
-
-          // 映射到四种状态类
+          // 映射状态到 CSS 类
           const mappedStatus = mapStatusToClass(topStatus) as TableItem['status']
 
-          // 获取能耗数据
+          // 获取能耗数据（保持原有逻辑）
           const timeRange = calculateTimeRange(props.timeRange || 'today')
           const [totalEnergy, eui, carbon] = await Promise.all([
             fetchEnergySummary(buildingId, timeRange),
             fetchEUI(buildingId, timeRange),
             fetchCarbon(buildingId, timeRange)
           ])
+          
+          // 获取设备数量（仅用于显示，不影响状态）
+          const metersListRes = await axios.get('/api/meters', {
+            params: { building_id: buildingId },
+            timeout: 5000
+          }).catch(() => ({ data: [] }))
+          const metersList = safeGetArray(metersListRes.data)
+          const deviceCount = metersList.length
 
           return {
             id: buildingId,
@@ -397,12 +382,9 @@ const fetchBuildings = async () => {
         'offline': 2,
         'online': 1
       }
-      
-      const getWeight = (status: string): number => statusWeight[status] ?? 0
-      
       validBuildings.sort((a, b) => {
-        const weightA = getWeight(a.status)
-        const weightB = getWeight(b.status)
+        const weightA = statusWeight[a.status] ?? 0
+        const weightB = statusWeight[b.status] ?? 0
         const order = props.sortConfig?.order === 'asc' ? 1 : -1
         return (weightA - weightB) * order
       })

@@ -168,7 +168,7 @@
         ref="buildingTableRef"
         :filter-form="{
           status: filterForm.status,
-          timeRange: filterForm.timeRange
+          timeRange: filterForm.timeRange as any
         }"
         :advanced-filters="advancedFilters"
         :sort-config="sortConfig"
