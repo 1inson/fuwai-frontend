@@ -173,6 +173,8 @@ export interface MeterListParams {
     building_id?: string
     meter_type?: string
     status?: 'online' | 'offline' | 'warning' | 'fault'
+    start_time?: string
+    end_time?: string
     page?: number
     page_size?: number
 }

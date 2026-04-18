@@ -3,11 +3,11 @@
     <div class="top">
       <div>
         <h3>报表工作台</h3>
-        <p>统一查看报表详情、AI 追问与 AI 运维分析。生成入口已移动到建筑表和设备表。</p>
+        <p>统一浏览报表详情、下载文件，并对已生成报表继续进行 AI 追问。生成入口已移动到建筑表和设备表。</p>
       </div>
       <button class="secondary small" :disabled="reportListLoading" @click="refreshReports">
         <Icon :icon="reportListLoading ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="{ spin: reportListLoading }" />
-        刷新列表
+        刷新
       </button>
     </div>
 
@@ -48,22 +48,22 @@
           <div class="subhead">
             <strong>报表详情</strong>
             <div class="actions">
-              <button class="secondary small" :disabled="!selectedReportId || reportDetailLoading" @click="reloadSelectedReport"><Icon :icon="reportDetailLoading ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="{ spin: reportDetailLoading }" />刷新详情</button>
-              <button class="secondary small" :disabled="!selectedReportId || reportDetailLoading" @click="viewReportDetail"><Icon icon="lucide:eye" />查看报表</button>
-              <button class="primary small" :disabled="!selectedReportId" @click="downloadReportFile"><Icon icon="lucide:download" />下载 Markdown</button>
-              <button class="secondary small danger" :disabled="!selectedReportId || deletingReport" @click="removeSelectedReport"><Icon :icon="deletingReport ? 'lucide:loader-2' : 'lucide:trash-2'" :class="{ spin: deletingReport }" />{{ deletingReport ? '删除中...' : '删除报表' }}</button>
+              <button class="secondary small" :disabled="!selectedReportId || reportDetailLoading" @click="reloadSelectedReport"><Icon :icon="reportDetailLoading ? 'lucide:loader-2' : 'lucide:refresh-cw'" :class="{ spin: reportDetailLoading }" />刷新</button>
+              <button class="secondary small" :disabled="!canViewReportFile" @click="viewReportFile"><Icon icon="lucide:external-link" />查看</button>
+              <button class="primary small" :disabled="!selectedReportId" @click="downloadReportFile"><Icon icon="lucide:download" />下载</button>
+              <button class="secondary small danger" :disabled="!selectedReportId || deletingReport" @click="removeSelectedReport"><Icon :icon="deletingReport ? 'lucide:loader-2' : 'lucide:trash-2'" :class="{ spin: deletingReport }" />{{ deletingReport ? '删除中' : '删除' }}</button>
             </div>
           </div>
           <div v-if="reportDetailError" class="msg err"><Icon icon="lucide:alert-circle" />{{ reportDetailError }}</div>
           <div v-if="reportDetailLoading" class="state"><Icon icon="lucide:loader-2" class="spin" /><span>正在加载报表详情...</span></div>
           <div v-else-if="reportDetail" class="stack">
             <div class="detail-grid">
-              <div class="detail-item"><span>报表 ID</span><strong>{{ reportDetail.report_id }}</strong></div>
+              <div class="detail-item mono"><span>报表 ID</span><strong :title="reportDetail.report_id">{{ reportDetail.report_id }}</strong></div>
               <div class="detail-item"><span>状态</span><strong>{{ getReportStatusLabel(reportDetail.status) }}</strong></div>
               <div class="detail-item"><span>类型</span><strong>{{ getReportTypeLabel(reportDetail.report_type) }}</strong></div>
-              <div class="detail-item"><span>所属建筑</span><strong>{{ reportDetail.building_id || activeSourceContext?.buildingId || '-' }}</strong></div>
-              <div class="detail-item"><span>来源对象</span><strong>{{ activeSourceLabel }}</strong></div>
-              <div class="detail-item"><span>时间范围</span><strong>{{ formatTimeRange(reportDetail.time_range) }}</strong></div>
+              <div class="detail-item"><span>所属建筑</span><strong :title="reportDetail.building_id || activeSourceContext?.buildingId || '-'">{{ reportDetail.building_id || activeSourceContext?.buildingId || '-' }}</strong></div>
+              <div class="detail-item"><span>来源对象</span><strong :title="activeSourceLabel">{{ activeSourceLabel }}</strong></div>
+              <div class="detail-item range"><span>时间范围</span><strong>{{ formatTimeRange(reportDetail.time_range) }}</strong></div>
             </div>
             <div v-if="baseReportSummary" class="box"><div class="title"><Icon icon="lucide:file-text" />报表摘要</div><p>{{ baseReportSummary }}</p></div>
             <div v-if="reportHourlyData.length" class="box"><div class="title"><Icon icon="lucide:clock" />小时数据</div><table class="table"><thead><tr><th>时间</th><th>总能耗</th><th>峰值</th><th>平均</th></tr></thead><tbody><tr v-for="(item, idx) in reportHourlyData" :key="idx"><td>{{ item.hour }}</td><td>{{ formatNumber(item.total) }}</td><td>{{ formatNumber(item.peak) }}</td><td>{{ formatNumber(item.average) }}</td></tr></tbody></table></div>
@@ -82,7 +82,7 @@
           </div>
           <label><span>提问内容</span><textarea v-model="reportQuestion" rows="3" placeholder="例如：这份报表最值得关注的风险是什么？接下来建议做哪些排查？" /></label>
           <div v-if="reportAiError" class="msg err"><Icon icon="lucide:alert-circle" />{{ reportAiError }}</div>
-          <div class="actions"><button class="primary" :disabled="summarizing || !reportDetail" @click="askReportQuestion(reportQuestion)"><Icon :icon="summarizing ? 'lucide:loader-2' : 'lucide:messages-square'" :class="{ spin: summarizing }" />{{ summarizing ? '提问中...' : '提交问题' }}</button></div>
+          <div class="actions question-actions"><button class="primary" :disabled="summarizing || !reportDetail" @click="askReportQuestion(reportQuestion)"><Icon :icon="summarizing ? 'lucide:loader-2' : 'lucide:messages-square'" :class="{ spin: summarizing }" />{{ summarizing ? '提问中...' : '提交问题' }}</button></div>
           <div v-if="reportAiResponse" class="stack">
             <div v-if="reportAiResponse.summary" class="box"><div class="title"><Icon icon="lucide:sparkles" />AI 总结</div><p>{{ reportAiResponse.summary }}</p></div>
             <section v-if="reportAiResponse.highlights?.length" class="box"><div class="title"><Icon icon="lucide:star" />关键亮点</div><ul><li v-for="(item, index) in reportAiResponse.highlights" :key="`highlight-${index}`">{{ item }}</li></ul></section>
@@ -92,33 +92,14 @@
           </div>
         </section>
 
-        <section class="card">
-          <div class="subhead">
-            <strong>AI 运维分析</strong>
-            <div class="actions">
-              <button class="primary small" :disabled="opsLoading || !reportDetail" @click="startAnalysis"><Icon :icon="opsLoading ? 'lucide:loader-2' : 'lucide:bot'" :class="{ spin: opsLoading }" />{{ opsLoading ? '分析中...' : '开始分析' }}</button>
-              <button class="secondary small" :disabled="!opsLoading" @click="cancelOpsGuide">取消</button>
-            </div>
-          </div>
-          <div v-if="opsLoading" class="state"><Icon icon="lucide:loader-2" class="spin" /><span>{{ opsProgressMsg || 'AI 正在分析运维数据，请稍候...' }}</span></div>
-          <div v-else-if="opsError" class="msg err"><Icon icon="lucide:alert-circle" />{{ opsError }}</div>
-          <div v-else-if="opsResult" class="stack">
-            <section class="box"><p class="lead">{{ opsResult.summary }}</p></section>
-            <section v-if="opsResult.preconditions?.length" class="box"><div class="title"><Icon icon="lucide:shield-check" />前置条件</div><ul><li v-for="(item, index) in opsResult.preconditions" :key="index">{{ item }}</li></ul></section>
-            <section v-if="opsResult.steps?.length" class="box"><div class="title"><Icon icon="lucide:list-ordered" />运维步骤</div><div class="stack"><div v-for="(step, index) in opsResult.steps" :key="step.step_id" class="step"><div class="row"><span class="badge">{{ index + 1 }}</span><strong>{{ step.title }}</strong><em>{{ step.priority }}</em></div><p>{{ step.instruction }}</p><small>预期结果：{{ step.expected_result }}</small><small>未达预期时处理：{{ step.if_not_met }}</small></div></div></section>
-            <section v-if="opsResult.risk_notice?.length" class="box"><div class="title"><Icon icon="lucide:triangle-alert" />风险提示</div><ul class="risk"><li v-for="(item, index) in opsResult.risk_notice" :key="index">{{ item }}</li></ul></section>
-          </div>
-          <div v-else class="state"><Icon icon="lucide:bot" /><span>选择报表后，可基于报表上下文发起 AI 运维分析。</span></div>
-        </section>
       </div>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { connectOpsGuideStream, type OpsGuideResponse, type OpsGuideSSEEvent } from '../../api/anomaly'
 import { deleteReport, downloadReport, getReportDetail, listReports, summarizeReport, type GenerateReportRequest, type ReportDetailResponse, type ReportListItem, type ReportStatus, type ReportSummaryResponse } from '../../api/statistics'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
 
@@ -142,11 +123,6 @@ const reportDetail = ref<ReportDetailResponse | null>(null)
 const reportQuestion = ref('')
 const reportAiError = ref('')
 const reportAiResponse = ref<ReportSummaryResponse | null>(null)
-const opsLoading = ref(false)
-const opsError = ref('')
-const opsResult = ref<OpsGuideResponse | null>(null)
-const opsProgressMsg = ref('')
-const opsAbortController = ref<AbortController | null>(null)
 const reportContextMap = ref<Record<string, ReportSourceContext>>({})
 
 const unwrap = <T>(payload: T | { data?: T }) => ((payload as { data?: T })?.data ?? payload) as T
@@ -177,7 +153,9 @@ const getSourceText = (reportId: string) => {
   const context = reportContextMap.value[reportId]
   return !context ? '' : context.sourceType === 'meter' ? `来源设备：${context.sourceLabel}` : `来源建筑：${context.sourceLabel}`
 }
-const clearReportInteraction = () => { reportDetailError.value = ''; reportAiError.value = ''; reportAiResponse.value = null; opsError.value = ''; opsResult.value = null }
+const resolveReportUrl = () => reportDetail.value?.download_url || reportDetail.value?.exports?.[0]?.download_url || selectedReportListItem.value?.download_url || ''
+const canViewReportFile = computed(() => Boolean(resolveReportUrl()) || Boolean(selectedReportId.value))
+const clearReportInteraction = () => { reportDetailError.value = ''; reportAiError.value = ''; reportAiResponse.value = null }
 const registerContext = (context?: ReportSourceContext | null) => {
   if (!context?.reportId) return
   reportContextMap.value = { ...reportContextMap.value, [context.reportId]: context }
@@ -207,11 +185,7 @@ const applyFilters = async () => { reportFilters.value.page = 1; await loadRepor
 const changePage = async (step: number) => { const nextPage = reportFilters.value.page + step; if (nextPage < 1 || nextPage > totalPages.value) return; reportFilters.value.page = nextPage; await loadReportList() }
 const refreshReports = async () => { await loadReportList(); if (selectedReportId.value) await fetchReportDetail(selectedReportId.value) }
 const reloadSelectedReport = async () => { if (selectedReportId.value) await fetchReportDetail(selectedReportId.value) }
-const viewReportDetail = async () => {
-  if (!selectedReportId.value) return
-  await fetchReportDetail(selectedReportId.value)
-  reportNotice.value = { type: 'ok', text: '报表详情已刷新，请在右侧查看。' }
-}
+const viewReportFile = () => { const url = resolveReportUrl(); if (url) window.open(url, '_blank'); else if (selectedReportId.value) window.open(`/api/reports/${selectedReportId.value}?download=true&format=md`, '_blank') }
 const downloadReportFile = async () => {
   const reportId = selectedReportId.value || reportDetail.value?.report_id
   if (!reportId) return
@@ -236,7 +210,7 @@ const removeSelectedReport = async () => {
   try {
     const response = unwrap(await deleteReport(reportId))
     if (!response?.deleted) throw new Error(response?.message || '报表删除失败')
-    if (selectedReportId.value === reportId) { selectedReportId.value = ''; reportDetail.value = null; reportAiResponse.value = null; reportQuestion.value = ''; opsResult.value = null }
+    if (selectedReportId.value === reportId) { selectedReportId.value = ''; reportDetail.value = null; reportAiResponse.value = null; reportQuestion.value = '' }
     reportNotice.value = { type: 'ok', text: response.message || '报表已删除。' }
     await loadReportList(true)
   } catch (error: any) {
@@ -257,34 +231,545 @@ const askReportQuestion = async (question: string) => {
     summarizing.value = false
   }
 }
-const handleOpsSSEEvent = (event: OpsGuideSSEEvent) => {
-  const { event: type, data } = event
-  if (type === 'status' || type === 'progress') opsProgressMsg.value = data?.message || data?.status || JSON.stringify(data)
-  else if (type === 'summary') opsResult.value = opsResult.value ? { ...opsResult.value, summary: data?.summary || data || '' } : { incident_id: '', status: 'streaming', summary: data?.summary || data || '', steps: [], meta: { generated_at: new Date().toISOString(), model: '' } }
-  else if (type === 'preconditions' && opsResult.value) opsResult.value.preconditions = Array.isArray(data) ? data : data?.preconditions || []
-  else if (type === 'step' && opsResult.value) { const step = data?.step || data; if (step) { const index = opsResult.value.steps.findIndex(item => item.step_id === step.step_id); if (index >= 0) opsResult.value.steps[index] = step; else opsResult.value.steps.push(step) } }
-  else if (type === 'risk_notice' && opsResult.value) opsResult.value.risk_notice = Array.isArray(data) ? data : data?.risk_notice || []
-  else if ((type === 'complete' || type === 'done') && data && typeof data === 'object' && data.steps) { opsResult.value = data; opsLoading.value = false; opsProgressMsg.value = '' }
-  else if (type === 'error') { opsLoading.value = false; opsError.value = data?.message || data?.detail || 'AI 运维分析出错'; opsProgressMsg.value = '' }
-}
-const startAnalysis = () => {
-  if (!reportDetail.value) return
-  const buildingId = reportDetail.value.building_id || activeSourceContext.value?.buildingId
-  if (!buildingId) { opsError.value = '当前报表缺少建筑上下文，无法执行 AI 运维分析。'; return }
-  opsLoading.value = true
-  opsError.value = ''
-  opsResult.value = null
-  opsProgressMsg.value = '正在连接 AI 服务...'
-  const sourceText = activeSourceContext.value?.sourceType === 'meter' ? `设备 ${activeSourceContext.value.sourceLabel}` : `建筑 ${activeSourceContext.value?.sourceLabel || buildingId}`
-  opsAbortController.value = connectOpsGuideStream({ question: `请基于报表 ${reportDetail.value.report_id} 和 ${sourceText} 输出运维分析与排查建议`, guide_mode: 'standard_sop', context: { building_id: buildingId, meter: activeSourceContext.value?.sourceType === 'meter' ? activeSourceContext.value.sourceId : 'electricity', time_range: reportDetail.value.time_range, page_context: { source: activeSourceContext.value?.sourceType === 'meter' ? 'statistics_meter_report' : 'statistics_building_report', page_type: 'statistics' } }, include_knowledge: true, include_history: true, include_actions: true }, handleOpsSSEEvent, (error: Error) => { opsLoading.value = false; opsAbortController.value = null; opsError.value = error.message || 'AI 运维分析请求失败' }, (fullResult: OpsGuideResponse | null) => { opsLoading.value = false; opsAbortController.value = null; if (fullResult) opsResult.value = fullResult })
-}
-const cancelOpsGuide = () => { if (opsAbortController.value) { opsAbortController.value.abort(); opsAbortController.value = null } opsLoading.value = false; opsProgressMsg.value = '' }
 const syncExternalSelection = async () => { registerContext(props.sourceContext); if (!props.selectedReportId) return; if (reportList.value.length === 0) await loadReportList(); reportNotice.value = { type: 'ok', text: '已切换到新生成的报表。' }; await selectReport(props.selectedReportId) }
 watch(() => [props.selectedReportId, props.selectionVersion], syncExternalSelection)
 onMounted(async () => { registerContext(props.sourceContext); await loadReportList(true); if (props.selectedReportId) await syncExternalSelection() })
-onUnmounted(cancelOpsGuide)
 </script>
 
 <style scoped>
-.workbench,.card,.box,.item,.detail-item,.metric,.step{border:1px solid #e2e8f0;border-radius:14px;background:#fff}.workbench{padding:24px;display:flex;flex-direction:column;gap:16px;box-shadow:0 1px 3px rgba(15,23,42,.04),0 4px 14px rgba(15,23,42,.03)}.top,.subhead,.row,.pager,.actions{display:flex;justify-content:space-between;align-items:center;gap:12px}.layout{display:grid;grid-template-columns:340px minmax(0,1fr);gap:16px}.right,.stack,.list{display:flex;flex-direction:column;gap:16px}.filters,.detail-grid,.metrics{display:grid;gap:12px}.filters{grid-template-columns:repeat(3,minmax(0,1fr))}.detail-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.metrics{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.top h3,.subhead strong{margin:0;color:#0f172a}.top p,p,small,ul,span{color:#475569}.box,.card{padding:16px}.item{padding:12px;text-align:left;cursor:pointer}.item.active{border-color:#0b4582;background:#eff6ff}.detail-item,.metric,.step{padding:12px;background:#f8fafc}.detail-item span,.metric span{font-size:12px;color:#64748b}.detail-item strong,.metric strong{color:#0f172a}.msg,.state,.title,.meta{display:flex;align-items:center;gap:8px}.msg{padding:12px 14px;border-radius:12px;font-size:12px;font-weight:600}.msg.ok{background:#ecfdf5;color:#059669}.msg.err{background:#fef2f2;color:#dc2626}.state{justify-content:center;padding:14px;border:1px dashed #cbd5e1;border-radius:12px;background:#f8fafc}.title{font-weight:800;color:#0b4582}.meta{flex-wrap:wrap;font-size:11px;color:#94a3b8}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:8px 10px;border-bottom:1px solid #e2e8f0;text-align:left}.pill{padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700}.pill.queued{background:#f1f5f9;color:#475569}.pill.processing{background:#eff6ff;color:#1d4ed8}.pill.ready{background:#ecfdf5;color:#059669}.pill.failed{background:#fef2f2;color:#dc2626}.primary,.secondary{min-height:40px;padding:0 16px;border:none;border-radius:10px;cursor:pointer;font:700 13px inherit;display:inline-flex;align-items:center;gap:6px}.primary{background:linear-gradient(135deg,#0b4582,#1565c0);color:#fff}.secondary{background:#eef2f7;color:#334155;border:1px solid #dbe5f0}.secondary.danger{background:#fef2f2;color:#dc2626;border-color:#fecaca}.small{min-height:34px;padding:0 14px;font-size:12px}label{display:flex;flex-direction:column;gap:6px}label span{font-size:12px;font-weight:700;color:#475569}select,textarea{min-height:42px;border:1px solid #cbd5e1;border-radius:10px;padding:0 12px;font-size:13px;outline:none;background:#fff}textarea{padding:12px;resize:vertical}.badge{width:24px;height:24px;border-radius:50%;background:#0b4582;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}em{font-style:normal;font-size:11px;padding:3px 8px;border-radius:999px;background:#eff6ff;color:#0b4582}.lead{margin:0;color:#1e3a5f}.risk li{color:#dc2626}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media (max-width:1200px){.layout{grid-template-columns:1fr}.filters,.detail-grid{grid-template-columns:1fr}}@media (max-width:640px){.workbench{padding:16px}}
+.workbench {
+  --report-blue: #0b4582;
+  --report-blue-2: #155fa6;
+  --report-ink: #0f172a;
+  --report-muted: #667085;
+  --report-soft: #f6f9fc;
+  --report-line: #dbe5ef;
+  --report-line-strong: #c7d6e5;
+  --report-danger: #dc2626;
+  --report-success: #059669;
+  position: relative;
+  inset: auto;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: max-content;
+  box-sizing: border-box;
+  overflow: visible;
+  padding: 22px;
+  border: 1px solid var(--report-line);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 4% 0%, rgba(11, 69, 130, 0.08), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: var(--report-ink);
+  font-family: 'Plus Jakarta Sans', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.top h3 {
+  margin: 0;
+  color: var(--report-ink);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.top p {
+  max-width: 860px;
+  margin: 8px 0 0;
+  color: var(--report-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.42fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.right,
+.stack,
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.right {
+  gap: 18px;
+  min-width: 0;
+}
+
+.stack,
+.list {
+  gap: 14px;
+}
+
+.card,
+.box,
+.item,
+.detail-item,
+.metric {
+  border: 1px solid var(--report-line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.card {
+  min-width: 0;
+  padding: 18px;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.035);
+}
+
+.left {
+  position: sticky;
+  top: 14px;
+}
+
+.box {
+  padding: 16px;
+}
+
+.subhead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.subhead strong {
+  min-width: 0;
+  color: var(--report-ink);
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.question-actions {
+  margin-top: 12px;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+label span {
+  color: #52637a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--report-line-strong);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--report-ink);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+select {
+  min-height: 40px;
+  padding: 0 10px;
+}
+
+textarea {
+  min-height: 92px;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+select:focus,
+textarea:focus {
+  border-color: var(--report-blue);
+  box-shadow: 0 0 0 3px rgba(11, 69, 130, 0.08);
+}
+
+.item {
+  width: 100%;
+  min-width: 0;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(11, 69, 130, 0.32);
+  box-shadow: 0 10px 22px rgba(11, 69, 130, 0.08);
+}
+
+.item.active {
+  border-color: var(--report-blue);
+  background:
+    linear-gradient(135deg, rgba(11, 69, 130, 0.1), rgba(255, 255, 255, 0.96));
+  box-shadow: inset 4px 0 0 var(--report-blue);
+}
+
+.row {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.item .row strong {
+  min-width: 0;
+  color: var(--report-ink);
+  font-size: 15px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item small {
+  display: block;
+  min-width: 0;
+  margin-top: 6px;
+  color: #506078;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.pill.queued {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.pill.processing {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.pill.ready {
+  background: #ecfdf5;
+  color: var(--report-success);
+}
+
+.pill.failed {
+  background: #fef2f2;
+  color: var(--report-danger);
+}
+
+.pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.pager span {
+  color: var(--report-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-item,
+.metric {
+  min-width: 0;
+  padding: 15px;
+  background: linear-gradient(180deg, #fbfdff, #f6f9fc);
+}
+
+.detail-item span,
+.metric span {
+  display: block;
+  margin-bottom: 8px;
+  color: #62748b;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.detail-item strong,
+.metric strong {
+  display: block;
+  max-width: 100%;
+  color: var(--report-ink);
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.28;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-item.mono strong {
+  font-size: 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  letter-spacing: -0.03em;
+}
+
+.detail-item.range strong {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.box p,
+.box ul {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.72;
+}
+
+.box p {
+  margin: 10px 0 0;
+}
+
+.title,
+.msg,
+.state,
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  color: var(--report-blue);
+  font-weight: 900;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.metric strong {
+  font-size: 17px;
+}
+
+.metric small {
+  margin-left: 4px;
+  color: var(--report-muted);
+  font-size: 11px;
+}
+
+.msg {
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.msg.ok {
+  background: #ecfdf5;
+  color: var(--report-success);
+}
+
+.msg.err {
+  background: #fef2f2;
+  color: var(--report-danger);
+}
+
+.state {
+  justify-content: center;
+  min-height: 96px;
+  padding: 16px;
+  border: 1px dashed var(--report-line-strong);
+  border-radius: 16px;
+  background: var(--report-soft);
+  color: var(--report-muted);
+  text-align: center;
+}
+
+.meta {
+  flex-wrap: wrap;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 10px;
+}
+
+.table th,
+.table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  color: #475569;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table th {
+  color: var(--report-ink);
+  font-weight: 900;
+}
+
+.primary,
+.secondary {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font: 800 13px inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  line-height: 1;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.primary {
+  background: linear-gradient(135deg, var(--report-blue), var(--report-blue-2));
+  color: #fff;
+  box-shadow: 0 10px 18px rgba(11, 69, 130, 0.16);
+}
+
+.secondary {
+  background: #f4f7fb;
+  color: #344054;
+  border-color: var(--report-line);
+}
+
+.secondary.danger {
+  background: #fff5f5;
+  color: var(--report-danger);
+  border-color: #fecaca;
+}
+
+.small {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.risk li {
+  color: var(--report-danger);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1400px) {
+  .layout {
+    grid-template-columns: minmax(290px, 0.38fr) minmax(0, 1fr);
+  }
+
+  .detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .left {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .workbench {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .top,
+  .subhead {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filters,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions,
+  .pager {
+    justify-content: flex-start;
+  }
+}
 </style>
