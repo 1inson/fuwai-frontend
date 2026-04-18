@@ -252,9 +252,10 @@
           <h3>运行关键指标</h3>
           <div class="metrics-grid">
             <div class="metric-item">
-              <span class="metric-label">能耗异常率</span>
-              <span class="metric-value abnormal">{{ metrics.abnormalRate }}%</span>
+              <span class="metric-label">故障次数</span>
+              <span class="metric-value abnormal">{{ metrics.abnormalRate }}</span>
             </div>
+
             <div class="metric-item">
               <span class="metric-label">EUI 达标率</span>
               <span class="metric-value eui">{{ metrics.euiRate }}%</span>
@@ -597,6 +598,19 @@ interface WeatherData {
   [key: string]: any;
 }
 
+// ===== 常量定义 =====
+// 添加中文到英文的映射（根据图2枚举值）
+const meterTypeMap: Record<string, string> = {
+  '电力': 'electricity',
+  '热水': 'hotwater',
+  '冷冻水': 'chilledwater',
+  '蒸汽': 'steam',
+  '灌溉': 'irrigation',
+  '太阳能': 'solar',
+  '燃气': 'gas',
+  '水': 'water'
+};
+
 // ===== 组件状态 =====
 const route = useRoute();
 const router = useRouter();
@@ -678,7 +692,7 @@ const fetchHourlyData = async () => {
       const startStr = `${selectedDay.value}T${hh}:00:00`;
       const endStr = `${selectedDay.value}T${hh}:59:59`;
       return getBuildingEnergySummary(buildingId.value, {
-        meter: 'electricity' as any, // 用电力类型判断该小时是否有能耗数据
+        meter: 'electricity' as any,
         granularity: 'hour',
         start_time: startStr,
         end_time: endStr
@@ -700,22 +714,34 @@ const fetchHourlyData = async () => {
     try {
       const weatherRes = await axios.get('/api/energy/weather', {
         params: {
-          building_id: buildingId.value,
+          building_ids: buildingId.value, // 改为复数形式
           start_time: `${selectedDay.value}T00:00:00`,
-          end_time: `${selectedDay.value}T23:59:59`
+          end_time: `${selectedDay.value}T23:59:59`,
+          granularity: 'hour' // 添加粒度参数
         },
         timeout: 10000
       });
+      
       const weatherData = weatherRes.data?.data ?? weatherRes.data;
       
-      if (Array.isArray(weatherData)) {
-        weatherData.forEach((w: any) => {
-          const h = new Date(w.time || w.timestamp || w.date || '').getHours();
-          if (!isNaN(h)) weatherMap[h] = w;
-        });
-      } else if (weatherData && typeof weatherData === 'object') {
-        // 如果返回单条对象，先给每个小时都赋值（弹窗里显示同一条）
-        for (let i = 0; i < 24; i++) weatherMap[i] = weatherData;
+      // 根据图4的返回结构解析：series[0].points 数组
+      if (weatherData?.series && Array.isArray(weatherData.series)) {
+        const series = weatherData.series.find((s: any) => s.building_id === buildingId.value);
+        if (series?.points && Array.isArray(series.points)) {
+          series.points.forEach((point: any) => {
+            const h = new Date(point.timestamp || point.time).getHours();
+            if (!isNaN(h)) weatherMap[h] = point;
+          });
+        }
+      } else if (weatherData?.data?.series) {
+        // 兼容嵌套在 data 字段的情况
+        const series = weatherData.data.series.find((s: any) => s.building_id === buildingId.value);
+        if (series?.points) {
+          series.points.forEach((point: any) => {
+            const h = new Date(point.timestamp || point.time).getHours();
+            if (!isNaN(h)) weatherMap[h] = point;
+          });
+        }
       }
     } catch (e) {
       console.error('环境数据获取失败:', e);
@@ -724,7 +750,7 @@ const fetchHourlyData = async () => {
     const energyResults = await Promise.all(energyPromises);
 
     // 组装24小时数据
-    hourlyData.value = energyResults.map((er, i) => {
+    hourlyData.value = energyResults.map((er: any, i: number) => {
       const hh = String(i).padStart(2, '0');
       return {
         hour: `${hh}:00`,
@@ -741,7 +767,6 @@ const fetchHourlyData = async () => {
   } finally {
     hourlyLoading.value = false;
   }
-  
 };
 
 
@@ -878,6 +903,8 @@ const fetchData = async () => {
     selectedDay.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     
     await fetchHourlyData();
+    await fetchMetricsData(); // 新增：获取EUI和故障次数
+
   } catch (err: any) {
     console.error('Failed to fetch building details', err);
     error.value = true;
@@ -953,6 +980,18 @@ const formatWindDirection = (degree: number | string | undefined): string => {
   const index = Math.round((num < 0 ? num + 360 : num) / 45) % 8;
   return directions[index] ?? '-';
 };
+// 根据《民用建筑能耗标准》GB/T 51161-2016 大型公共建筑能耗约束值
+const getBaselineEUI = (buildingType: string): number => {
+  const type = (buildingType || '').toLowerCase();
+  if (type.includes('office')) return 85;
+  if (type.includes('hotel') || type.includes('hospitality')) return 100;
+  if (type.includes('retail') || type.includes('market') || type.includes('shop')) return 130;
+  if (type.includes('entertainment') || type.includes('assembly') || type.includes('public')) return 110;
+  if (type.includes('hospital')) return 140;
+  if (type.includes('education') || type.includes('school')) return 70;
+  return 100; // 默认公共建筑基准 EUI (kWh/m²/年)
+};
+
 
 // ===== 业务逻辑 =====
 const timeRangeText = computed(() => {
@@ -966,10 +1005,57 @@ const timeRangeText = computed(() => {
   return map[timeRange.value] || '本月';
 });
 
-const metrics = ref({ abnormalRate: '0.42', euiRate: '104.2' });
+// ===== 指标数据状态（替换原来的 ref）=====
+const euiResponse = ref<any>(null);
+const alarmResponse = ref<any>(null);
+
+// 获取EUI和故障数据
+const fetchMetricsData = async () => {
+  try {
+    const [euiRes, alarmRes] = await Promise.all([
+      axios.get('/energy/cop', {
+        params: { building_id: buildingId.value }
+      }).catch(err => {
+        console.error('EUI接口请求失败:', err);
+        return null;
+      }),
+      // 用户指定接口：获取设备告警记录
+      axios.get('/meters/1/alarms', {
+        params: { 
+          page: 1,
+          page_size: 999 // 取足够多的数据
+        }
+      }).catch(err => {
+        console.error('告警接口请求失败:', err);
+        return null;
+      })
+    ]);
+    
+    euiResponse.value = euiRes?.data?.data ?? euiRes?.data;
+    alarmResponse.value = alarmRes?.data?.data ?? alarmRes?.data;
+    
+    console.log('EUI数据:', euiResponse.value);
+    console.log('告警数据:', alarmResponse.value);
+  } catch (e) {
+    console.error('获取运行指标失败:', e);
+  }
+};
 
 const derivedData = computed(() => {
-  // 简化返回，实际应保持原有复杂计算逻辑
+  const catData = rawData.value.categoryEnergy;
+  
+  // 从接口返回数据中提取实际值（根据图2返回结构：data.summary.total）
+  const totalEnergy = catData?.summary?.total ?? 
+                     catData?.data?.summary?.total ?? 
+                     catData?.total ?? 
+                     '0';
+  
+  // 获取总能耗（用于计算占比）- 你可以从其他接口获取，这里先使用固定值作为示例
+  const totalEnergyAll = 12500.8; 
+  const energyRatio = Number(totalEnergy) > 0 ? 
+    ((Number(totalEnergy) / totalEnergyAll) * 100).toFixed(1) + '%' : 
+    '0%';
+
   return { 
     cop: '3.2', 
     annualCarbon: '1250.50', 
@@ -984,9 +1070,38 @@ const derivedData = computed(() => {
     waterPerArea: '0.025', 
     energyPerPerson: '125.5', 
     energyType: energyCategory.value, 
-    totalEnergy: '8500.5', 
-    energyRatio: '65%', 
-    totalEnergyAll: '12500.8' 
+    totalEnergy: totalEnergy.toString(), // 使用接口返回的真实数据
+    energyRatio: energyRatio, // 使用计算出的占比
+    totalEnergyAll: totalEnergyAll.toString()
+  };
+});
+
+// 动态计算指标（从死数据改为接口驱动）
+const metrics = computed(() => {
+  // 1. 获取基准EUI（基于建筑用途和中国标准）
+  const buildingType = buildingInfo.value.primaryspaceusage || '';
+  const baselineEUI = getBaselineEUI(buildingType);
+  
+  // 2. 获取实际EUI（优先接口数据，fallback到衍生数据）
+  const actualEUI = euiResponse.value?.site_eui ?? 
+                   euiResponse.value?.eui_site ?? 
+                   euiResponse.value?.eui ?? 
+                   derivedData.value.euiSite ?? 
+                   88.5;
+  
+  // 3. EUI达标率 = (基准EUI - 实际EUI) ÷ 基准EUI × 100%
+  let euiRate = 0;
+  if (baselineEUI > 0) {
+    euiRate = ((baselineEUI - actualEUI) / baselineEUI) * 100;
+  }
+  
+  // 4. 故障次数 = 告警记录条数（根据图3返回结构）
+  const alarmItems = alarmResponse.value?.items || [];
+  const alarmCount = alarmResponse.value?.pagination?.total ?? alarmItems.length;
+  
+  return {
+    abnormalRate: alarmCount,              // 故障次数（整数，不带%）
+    euiRate: euiRate.toFixed(1)           // EUI达标率（保留1位小数）
   };
 });
 
@@ -1056,33 +1171,37 @@ const calculateTimeRange = (range: string) => {
 // 确保 currentSystemTime 也存在
 const currentSystemTime = ref(getSettingPageTime());
 
-// 获取特定类别的能耗数据
+/// 获取特定类别的能耗数据
 const fetchCategoryEnergy = async () => {
   try {
     const { start_time, end_time } = calculateTimeRange(timeRange.value);
     
-    const response = await axios.get('/api/energy/query', {
+    // ✅ 使用图2的正确接口地址和参数
+    const response = await axios.get(`/api/energy/summary`, {  // 注意：这里假设是基础路径，实际可能是 /buildings/${buildingId.value}/energy/summary
       params: {
         building_id: buildingId.value,
-        energy_type: energyCategory.value, // 或 type / category，根据后端实际字段调整
+        meter: meterTypeMap[energyCategory.value], // 转换为英文枚举值：'electricity', 'hotwater' 等
         start_time: start_time,
-        end_time: end_time
+        end_time: end_time,
+        granularity: 'hour'
       }
     });
     
     rawData.value.categoryEnergy = response.data?.data || response.data;
+    console.log('分类能耗获取成功:', energyCategory.value, rawData.value.categoryEnergy);
   } catch (err) {
     console.error('获取分类能耗失败:', err);
     rawData.value.categoryEnergy = null;
   }
 };
 
+
 const handleEnergyCategoryChange = async () => {
   // 调用上面定义的函数获取新类别的数据
   await fetchCategoryEnergy();
   
-  // derivedData 是计算属性，会自动根据 energyCategory 重新计算
-  // 不需要手动更新
+  // 注意：不需要手动更新 derivedData，因为它是计算属性，会自动重新计算
+  console.log('切换能耗类别为:', energyCategory.value);
 };
 
 

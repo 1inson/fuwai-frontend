@@ -3,7 +3,7 @@
     <div class="head">
       <h3>分建筑用能绩效表</h3>
       <div class="head-right">
-        <span class="update-time">最后更新 {{ lastUpdated }}</span>
+        <span class="update-time">统计截止 {{ statisticsEndText }}</span>
         <button class="icon-btn" @click="fetchData" :disabled="loading">
           <Icon icon="lucide:refresh-cw" :class="{ spin: loading }" />
         </button>
@@ -60,7 +60,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
-import { getCurrentTimeString } from '../../utils/timeManager'
 import { getBuildings, getEnergyQuery, getMeters } from '../../api/statistics'
 import BuildingDetailsModal from './BuildingDetailsModal.vue'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
@@ -79,7 +78,6 @@ interface BuildingRow {
 
 const tableData = ref<BuildingRow[]>([])
 const loading = ref(false)
-const lastUpdated = ref('')
 const currentPage = ref(1)
 const pageSize = ref(5)
 const paginationInfo = ref({ total: 0 })
@@ -89,6 +87,8 @@ const selectedBuildingId = ref('')
 
 const unwrap = (res: any) => res?.data ?? res
 const formatNumber = (val: number | null | undefined) => val == null || Number.isNaN(val) ? '-' : val.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+const formatTime = (iso?: string | null) => !iso ? '-' : (Number.isNaN(new Date(iso).getTime()) ? iso : new Date(iso).toLocaleString('zh-CN'))
+const statisticsEndText = computed(() => formatTime(props.endTime))
 
 const changePage = (page: number) => {
   if (page < 1 || page > totalPages.value) return
@@ -111,7 +111,7 @@ const fetchData = async () => {
       let statusText = '正常运行'
 
       try {
-        const meterData = unwrap(await getMeters({ building_id: bid }))
+        const meterData = unwrap(await getMeters({ building_id: bid, start_time: props.startTime, end_time: props.endTime, page_size: 100 }))
         const meterItems = meterData?.items || []
         meterCount = meterData?.pagination?.total || 0
         if (meterItems.some((item: any) => item.status === 'fault')) {
@@ -139,9 +139,6 @@ const fetchData = async () => {
       const sqm = building.sqm || 0
       return { building_id: bid, meterCount, energyTotal, eui: sqm > 0 ? energyTotal / sqm : 0, status, statusText }
     }))
-
-    const now = new Date(getCurrentTimeString())
-    lastUpdated.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   } finally {
     loading.value = false
   }

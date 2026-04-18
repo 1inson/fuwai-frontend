@@ -14,7 +14,7 @@
           <option value="fault">故障</option>
           <option value="offline">离线</option>
         </select>
-        <span class="update-time">最后更新 {{ lastUpdated }}</span>
+        <span class="update-time">统计截止 {{ statisticsEndText }}</span>
         <button class="icon-btn" @click="fetchData" :disabled="loading">
           <Icon icon="lucide:refresh-cw" :class="{ spin: loading }" />
         </button>
@@ -101,7 +101,6 @@ const meterTypes = [
 const tableData = ref<MeterRow[]>([])
 const loading = ref(false)
 const loadError = ref('')
-const lastUpdated = ref('')
 const filterMeterType = ref('')
 const filterStatus = ref('')
 const currentPage = ref(1)
@@ -115,6 +114,7 @@ const unwrap = (res: any) => res?.data ?? res
 const getStatusText = (status?: string) => ({ online: '在线', warning: '告警', fault: '故障', offline: '离线' }[status || ''] || status || '-')
 const getMeterTypeLabel = (type: string) => meterTypes.find(item => item.value === type)?.label || type || '-'
 const formatLastSeen = (iso?: string | null) => !iso ? '-' : (Number.isNaN(new Date(iso).getTime()) ? iso : new Date(iso).toLocaleString('zh-CN'))
+const statisticsEndText = computed(() => formatLastSeen(props.endTime))
 
 const changePage = (page: number) => {
   if (page < 1 || page > totalPages.value) return
@@ -132,6 +132,8 @@ const fetchData = async () => {
   loadError.value = ''
   try {
     const params: Record<string, any> = { page: currentPage.value, page_size: pageSize.value }
+    if (props.startTime) params.start_time = props.startTime
+    if (props.endTime) params.end_time = props.endTime
     if (filterMeterType.value) params.meter_type = filterMeterType.value
     if (filterStatus.value) params.status = filterStatus.value
 
@@ -147,9 +149,6 @@ const fetchData = async () => {
       }
       return { meter_id: item.meter_id, meter_name: item.meter_name || item.meter_id, meter_type: meterType || '', building_id: buildingId || '', status: item.status || 'offline', last_seen_at: item.last_seen_at || null }
     })
-
-    const now = new Date()
-    lastUpdated.value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   } catch (error) {
     console.error('设备列表获取失败:', error)
     loadError.value = '设备列表加载失败，请稍后重试。'
