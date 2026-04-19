@@ -223,7 +223,7 @@ onMounted(() => {
   padding: 24px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 14px rgba(15, 23, 42, 0.03);
   border: 1px solid #e8ecf1;
-  font-family: 'Plus Jakarta Sans', -apple-system, 'PingFang SC', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .panel-header {

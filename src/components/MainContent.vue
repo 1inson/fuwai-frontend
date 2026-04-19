@@ -90,7 +90,7 @@ onMounted(() => {
   --radius: 14px;
   --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 14px rgba(15, 23, 42, 0.03);
   --shadow-hover: 0 8px 28px rgba(15, 23, 42, 0.08);
-  --font: 'Plus Jakarta Sans', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font: var(--font-sans);
 
   padding: 24px 28px 32px;
   display: flex;
