@@ -264,14 +264,18 @@
                             <th>平均</th>
                           </tr>
                         </thead>
-                        <tbody>
-                          <tr v-for="(item, idx) in reportHourlyData" :key="idx">
+                        <TransitionGroup name="table-rise" tag="tbody" class="table-rise-body">
+                          <tr
+                            v-for="(item, idx) in reportHourlyData"
+                            :key="item.hour || idx"
+                            :style="{ transitionDelay: `${Math.min(idx, 8) * 28}ms` }"
+                          >
                             <td>{{ item.hour }}</td>
                             <td class="font-numeric">{{ formatNumber(item.total) }}</td>
                             <td class="font-numeric">{{ formatNumber(item.peak) }}</td>
                             <td class="font-numeric">{{ formatNumber(item.average) }}</td>
                           </tr>
-                        </tbody>
+                        </TransitionGroup>
                       </table>
                     </div>
 

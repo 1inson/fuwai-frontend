@@ -2,7 +2,8 @@
   <div class="table-card">
     <!-- 表格 -->
     <div class="table-wrapper">
-      <table class="data-table">
+      <AutoHeightTransition>
+        <table class="data-table">
         <thead>
           <tr>
             <!-- 导出模式显示全选框 -->
@@ -24,7 +25,7 @@
             <th class="text-right">操作</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody v-if="loading || !tableData || tableData.length === 0">
           <!-- 加载状态 -->
           <tr v-if="loading" class="loading-row">
             <td :colspan="props.isExportMode ? 8 : 7" class="loading-cell">
@@ -36,7 +37,7 @@
           </tr>
           
           <!-- 空状态 -->
-          <tr v-else-if="!tableData || tableData.length === 0" class="empty-row">
+          <tr v-else class="empty-row">
             <td :colspan="props.isExportMode ? 8 : 7" class="empty-cell">
               <div class="empty-content">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="2">
@@ -49,9 +50,15 @@
               </div>
             </td>
           </tr>
-          
+        </tbody>
+        <TransitionGroup v-else name="table-rise" tag="tbody" class="table-rise-body">
           <!-- 数据列表 -->
-          <tr v-else v-for="item in tableData" :key="item.building_id" :class="{ 'selected-row': props.isExportMode && selectedIds.has(item.building_id) }">
+          <tr
+            v-for="(item, index) in tableData"
+            :key="item.building_id"
+            :class="{ 'selected-row': props.isExportMode && selectedIds.has(item.building_id) }"
+            :style="{ transitionDelay: `${Math.min(index, 8) * 34}ms` }"
+          >
             <!-- 导出模式显示多选框 -->
             <td v-if="props.isExportMode" class="checkbox-column">
               <input 
@@ -111,8 +118,9 @@
               </div>
             </td>
           </tr>
-        </tbody>
-      </table>
+        </TransitionGroup>
+        </table>
+      </AutoHeightTransition>
 
       <!-- 分页栏 -->
       <div class="pagination-bar">
@@ -160,6 +168,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { getBuildings, getMeters } from '../../api/statistics'
+import AutoHeightTransition from '../common/AutoHeightTransition.vue'
 
 type BuildingStatus = 'normal' | 'warning' | 'fault' | 'offline'
 

@@ -19,76 +19,87 @@
       </div>
     </div>
 
-    <div v-if="error" class="state-card error-state">
-      <p>{{ error }}</p>
-      <button class="primary-btn" @click="emit('reload')">重新加载</button>
-    </div>
+    <AutoHeightTransition>
+      <div v-if="error" class="state-card error-state">
+        <p>{{ error }}</p>
+        <button class="primary-btn" @click="emit('reload')">重新加载</button>
+      </div>
 
-    <div v-else-if="loading" class="state-card loading-state">
-      <div class="spinner"></div>
-      <p>正在加载文件列表...</p>
-    </div>
-
-    <template v-else>
-      <div v-if="documents.length === 0" class="state-card empty-state">
-        <p>暂无符合条件的文件</p>
-        <button class="ghost-btn" @click="emit('reset')">清空筛选</button>
+      <div v-else-if="loading" class="state-card loading-state">
+        <div class="spinner"></div>
+        <p>正在加载文件列表...</p>
       </div>
 
       <template v-else>
-        <div class="table-wrapper desktop-table">
-          <table class="document-table">
-            <thead>
-              <tr>
-                <th>文件名称</th>
-                <th>所属数据集</th>
-                <th>类型</th>
-                <th>更新时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="doc in documents" :key="doc.document_id">
-                <td>
-                  <div class="title-cell">
-                    <span class="doc-icon" :class="getFileColorClass(doc.source_type)"><Icon :icon="getFileIcon(doc.source_type)" /></span>
-                    <div>
-                      <div class="doc-title">{{ doc.title }}</div>
-                      <div class="doc-subtitle">ID: {{ doc.document_id }}</div>
-                    </div>
-                  </div>
-                </td>
-                <td><span class="tag category-tag">{{ doc.category }}</span></td>
-                <td><span class="tag" :class="getFileTagClass(doc.source_type)">{{ formatSourceType(doc.source_type) }}</span></td>
-                <td>{{ formatDateTime(doc.updated_at) }}</td>
-                <td>
-                  <button class="action-btn" @click="emit('download', doc)" title="下载文件">
-                    <Icon icon="lucide:download" />
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-if="documents.length === 0" class="state-card empty-state">
+          <p>暂无符合条件的文件</p>
+          <button class="ghost-btn" @click="emit('reset')">清空筛选</button>
         </div>
 
-        <div class="mobile-list">
-          <article v-for="doc in documents" :key="doc.document_id" class="mobile-card">
-            <div class="mobile-top">
-              <span class="doc-icon" :class="getFileColorClass(doc.source_type)"><Icon :icon="getFileIcon(doc.source_type)" /></span>
-              <div>
-                <h4>{{ doc.title }}</h4>
-                <p>{{ doc.document_id }}</p>
+        <template v-else>
+          <div class="table-wrapper desktop-table">
+            <table class="document-table">
+              <thead>
+                <tr>
+                  <th>文件名称</th>
+                  <th>所属数据集</th>
+                  <th>类型</th>
+                  <th>更新时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <TransitionGroup name="table-rise" tag="tbody" class="table-rise-body">
+                <tr
+                  v-for="(doc, index) in documents"
+                  :key="doc.document_id"
+                  :style="{ transitionDelay: `${Math.min(index, 8) * 34}ms` }"
+                >
+                  <td>
+                    <div class="title-cell">
+                      <span class="doc-icon" :class="getFileColorClass(doc.source_type)"><Icon :icon="getFileIcon(doc.source_type)" /></span>
+                      <div>
+                        <div class="doc-title">{{ doc.title }}</div>
+                        <div class="doc-subtitle">ID: {{ doc.document_id }}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="tag category-tag">{{ doc.category }}</span></td>
+                  <td><span class="tag" :class="getFileTagClass(doc.source_type)">{{ formatSourceType(doc.source_type) }}</span></td>
+                  <td>{{ formatDateTime(doc.updated_at) }}</td>
+                  <td>
+                    <button class="action-btn" @click="emit('download', doc)" title="下载文件">
+                      <Icon icon="lucide:download" />
+                    </button>
+                  </td>
+                </tr>
+              </TransitionGroup>
+            </table>
+          </div>
+
+          <TransitionGroup name="panel-rise" tag="div" class="mobile-list">
+            <article
+              v-for="(doc, index) in documents"
+              :key="doc.document_id"
+              class="mobile-card"
+              :style="{ transitionDelay: `${Math.min(index, 8) * 34}ms` }"
+            >
+              <div class="mobile-top">
+                <span class="doc-icon" :class="getFileColorClass(doc.source_type)"><Icon :icon="getFileIcon(doc.source_type)" /></span>
+                <div>
+                  <h4>{{ doc.title }}</h4>
+                  <p>{{ doc.document_id }}</p>
+                </div>
               </div>
-            </div>
-            <div class="mobile-tags">
-              <span class="tag category-tag">{{ doc.category }}</span>
-              <span class="tag" :class="getFileTagClass(doc.source_type)">{{ formatSourceType(doc.source_type) }}</span>
-            </div>
-            <div class="mobile-meta">更新时间：{{ formatDateTime(doc.updated_at) }}</div>
-          </article>
-        </div>
+              <div class="mobile-tags">
+                <span class="tag category-tag">{{ doc.category }}</span>
+                <span class="tag" :class="getFileTagClass(doc.source_type)">{{ formatSourceType(doc.source_type) }}</span>
+              </div>
+              <div class="mobile-meta">更新时间：{{ formatDateTime(doc.updated_at) }}</div>
+            </article>
+          </TransitionGroup>
+        </template>
       </template>
-    </template>
+    </AutoHeightTransition>
 
     <div class="pagination-bar">
       <button class="ghost-btn" @click="emit('changePage', pagination.page - 1)" :disabled="loading || pagination.page <= 1">
@@ -112,6 +123,7 @@ import { Icon } from '@iconify/vue'
 import type { KnowledgeDocument } from '../../api/knowledge'
 import { formatDateTime, formatSourceType, getFileIcon, getFileColorClass, getFileTagClass } from './utils'
 import ThemedSelect from '../common/ThemedSelect.vue'
+import AutoHeightTransition from '../common/AutoHeightTransition.vue'
 
 const props = defineProps<{
   documents: KnowledgeDocument[]

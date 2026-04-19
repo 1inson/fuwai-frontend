@@ -119,3 +119,38 @@ select {
   opacity: 0.72;
   cursor: pointer;
 }
+
+.table-rise-body {
+  --table-rise-distance: 14px;
+  --table-rise-duration: 0.42s;
+}
+
+.table-rise-enter-active,
+.table-rise-move {
+  transition:
+    opacity var(--table-rise-duration) ease,
+    transform var(--table-rise-duration) cubic-bezier(0.22, 1, 0.36, 1),
+    filter var(--table-rise-duration) ease;
+}
+
+.table-rise-enter-from {
+  opacity: 0;
+  transform: translateY(var(--table-rise-distance)) scale(0.992);
+  filter: blur(6px);
+}
+
+.panel-rise-enter-active,
+.panel-rise-leave-active,
+.panel-rise-move {
+  transition:
+    opacity 0.34s ease,
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.42s ease;
+}
+
+.panel-rise-enter-from,
+.panel-rise-leave-to {
+  opacity: 0;
+  transform: translateY(16px) scale(0.985);
+  filter: blur(7px);
+}

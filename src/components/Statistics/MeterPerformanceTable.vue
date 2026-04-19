@@ -33,7 +33,8 @@
     </div>
 
     <div class="table-wrap">
-      <table class="table">
+      <AutoHeightTransition>
+        <table class="table">
         <thead>
           <tr>
             <th>设备名称</th>
@@ -44,14 +45,22 @@
             <th class="action-col">操作</th>
           </tr>
         </thead>
-        <tbody>
-          <tr v-if="loading && tableData.length === 0">
+        <tbody v-if="loading && tableData.length === 0">
+          <tr>
             <td colspan="6" class="state"><Icon icon="lucide:loader-2" class="spin" />设备数据加载中...</td>
           </tr>
-          <tr v-else-if="!loading && tableData.length === 0">
+        </tbody>
+        <tbody v-else-if="!loading && tableData.length === 0">
+          <tr>
             <td colspan="6" class="state">暂无设备数据</td>
           </tr>
-          <tr v-for="row in tableData" :key="row.meter_id">
+        </tbody>
+        <TransitionGroup v-else name="table-rise" tag="tbody" class="table-rise-body">
+          <tr
+            v-for="(row, index) in tableData"
+            :key="row.meter_id"
+            :style="{ transitionDelay: `${Math.min(index, 8) * 34}ms` }"
+          >
             <td class="strong">{{ row.meter_name || row.meter_id }}</td>
             <td>{{ getMeterTypeLabel(row.meter_type) }}</td>
             <td>{{ row.building_id }}</td>
@@ -64,8 +73,9 @@
               </div>
             </td>
           </tr>
-        </tbody>
-      </table>
+        </TransitionGroup>
+        </table>
+      </AutoHeightTransition>
     </div>
 
     <div class="pager" v-if="paginationInfo.total > 0">
@@ -88,6 +98,7 @@ import { getMeters } from '../../api/statistics'
 import MeterDetailsModal from './MeterDetailsModal.vue'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
 import ThemedSelect from '../common/ThemedSelect.vue'
+import AutoHeightTransition from '../common/AutoHeightTransition.vue'
 
 interface MeterTableCacheEntry {
   items: MeterRow[]

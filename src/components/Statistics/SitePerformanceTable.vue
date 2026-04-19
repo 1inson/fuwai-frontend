@@ -11,7 +11,8 @@
     </div>
 
     <div class="table-container">
-      <table class="performance-table">
+      <AutoHeightTransition>
+        <table class="performance-table">
         <thead>
           <tr>
             <th>设备</th>
@@ -22,24 +23,31 @@
             <th class="action-col">操作</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody v-if="loading && tableData.length === 0">
           <!-- Loading 状态 -->
-          <tr v-if="loading && tableData.length === 0">
+          <tr>
             <td colspan="6" class="loading-cell">
               <Icon icon="lucide:loader-2" class="spin loading-icon" />
               <span>数据聚合中，请稍候...</span>
             </td>
           </tr>
-          
+        </tbody>
+        <tbody v-else-if="!loading && tableData.length === 0">
           <!-- 完全无数据 -->
-          <tr v-else-if="!loading && tableData.length === 0">
+          <tr>
             <td colspan="6" class="empty-cell">
               暂无设备数据
             </td>
           </tr>
-
+        </tbody>
+        <TransitionGroup v-else name="table-rise" tag="tbody" class="table-rise-body">
           <!-- 真实数据 -->
-          <tr v-for="row in displayData" :key="row.site_id" class="data-row">
+          <tr
+            v-for="(row, index) in displayData"
+            :key="row.site_id"
+            class="data-row"
+            :style="{ transitionDelay: `${Math.min(index, 8) * 34}ms` }"
+          >
             <td class="font-bold">{{ row.site_id }}</td>
             <td class="font-bold font-numeric">{{ row.buildingCount }} 栋</td>
             <td class="font-bold font-numeric highlight-val">{{ formatNumber(row.energyTotal) }}</td>
@@ -57,8 +65,9 @@
               <button class="action-link" @click="viewDetails(row)">详情</button>
             </td>
           </tr>
-        </tbody>
-      </table>
+        </TransitionGroup>
+        </table>
+      </AutoHeightTransition>
     </div>
 
     <!-- 底部查看完整列表按钮 -->
@@ -76,6 +85,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { getCurrentTimeString } from '../../utils/timeManager'
 import { Icon } from '@iconify/vue'
 import { getBuildings, getEnergyQuery } from '../../api/statistics'
+import AutoHeightTransition from '../common/AutoHeightTransition.vue'
 
 const props = defineProps<{
   startTime: string

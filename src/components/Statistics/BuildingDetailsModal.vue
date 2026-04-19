@@ -33,9 +33,15 @@
             </div>
             <table class="table">
               <thead><tr><th>时间</th><th>总能耗(KWH)</th><th>峰值(KW)</th><th>平均(KWH)</th></tr></thead>
-              <tbody v-if="hourlyData.length">
-                <tr v-for="(item, idx) in hourlyData" :key="idx"><td>{{ item.hour }}</td><td>{{ formatNumber(item.total) }}</td><td>{{ formatNumber(item.peak) }}</td><td>{{ formatNumber(item.average) }}</td></tr>
-              </tbody>
+              <TransitionGroup v-if="hourlyData.length" name="table-rise" tag="tbody" class="table-rise-body">
+                <tr
+                  v-for="(item, idx) in hourlyData"
+                  :key="item.hour || idx"
+                  :style="{ transitionDelay: `${Math.min(idx, 8) * 28}ms` }"
+                >
+                  <td>{{ item.hour }}</td><td>{{ formatNumber(item.total) }}</td><td>{{ formatNumber(item.peak) }}</td><td>{{ formatNumber(item.average) }}</td>
+                </tr>
+              </TransitionGroup>
               <tbody v-else><tr><td colspan="4" class="state">未获取到当天小时数据</td></tr></tbody>
             </table>
           </section>

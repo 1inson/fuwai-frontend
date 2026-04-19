@@ -11,7 +11,8 @@
     </div>
 
     <div class="table-wrap">
-      <table class="table">
+      <AutoHeightTransition>
+        <table class="table">
         <thead>
           <tr>
             <th>建筑ID</th>
@@ -22,14 +23,22 @@
             <th class="action-col">操作</th>
           </tr>
         </thead>
-        <tbody>
-          <tr v-if="loading && tableData.length === 0">
+        <tbody v-if="loading && tableData.length === 0">
+          <tr>
             <td colspan="6" class="state"><Icon icon="lucide:loader-2" class="spin" />数据加载中...</td>
           </tr>
-          <tr v-else-if="!loading && tableData.length === 0">
+        </tbody>
+        <tbody v-else-if="!loading && tableData.length === 0">
+          <tr>
             <td colspan="6" class="state">暂无建筑数据</td>
           </tr>
-          <tr v-for="row in tableData" :key="row.building_id">
+        </tbody>
+        <TransitionGroup v-else name="table-rise" tag="tbody" class="table-rise-body">
+          <tr
+            v-for="(row, index) in tableData"
+            :key="row.building_id"
+            :style="{ transitionDelay: `${Math.min(index, 8) * 34}ms` }"
+          >
             <td class="strong">{{ row.building_id }}</td>
             <td>{{ row.meterCount }}</td>
             <td class="strong">{{ formatNumber(row.energyTotal) }}</td>
@@ -42,8 +51,9 @@
               </div>
             </td>
           </tr>
-        </tbody>
-      </table>
+        </TransitionGroup>
+        </table>
+      </AutoHeightTransition>
     </div>
 
     <div class="pager" v-if="paginationInfo.total > 0">
@@ -65,6 +75,7 @@ import { Icon } from '@iconify/vue'
 import { getBuildings, getBuildingEnergySummary, getMeters } from '../../api/statistics'
 import BuildingDetailsModal from './BuildingDetailsModal.vue'
 import type { ReportSourceContext } from './reportWorkbenchTypes'
+import AutoHeightTransition from '../common/AutoHeightTransition.vue'
 
 const props = defineProps<{ startTime: string; endTime: string }>()
 const emit = defineEmits<{ (e: 'generate-report', payload: ReportSourceContext): void }>()
