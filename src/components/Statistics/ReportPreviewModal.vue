@@ -240,6 +240,66 @@ const renderMarkdown = (source: string) => {
 
 const renderedHtml = computed(() => renderMarkdown(props.content || ''))
 
+const stripWrappedQuotes = (value: string) => value.trim().replace(/^['"]|['"]$/g, '')
+
+const splitMermaidList = (value: string) => value
+  .split(',')
+  .map(item => stripWrappedQuotes(item))
+  .map(item => item.trim())
+  .filter(Boolean)
+
+const parseMermaidNumbers = (value: string) => value
+  .split(',')
+  .map(item => Number(item.trim()))
+  .filter(item => Number.isFinite(item))
+
+const classifyMetricLabel = (label: string) => {
+  const normalized = label.replace(/\s+/g, '').toLowerCase()
+  if (normalized.includes('总量') || normalized.includes('total')) return 'total'
+  if (normalized.includes('均值') || normalized.includes('平均') || normalized.includes('average') || normalized.includes('avg')) return 'average'
+  if (normalized.includes('峰值') || normalized.includes('peak') || normalized.includes('max')) return 'peak'
+  return ''
+}
+
+const escapeMermaidText = (value: string) => value.replace(/"/g, '&quot;')
+
+const formatMetricValue = (value: number) => value.toLocaleString(undefined, {
+  minimumFractionDigits: value % 1 === 0 ? 0 : 1,
+  maximumFractionDigits: 2
+})
+
+const transformMetricComparisonChart = (source: string) => {
+  if (!/xychart-beta/i.test(source)) return source
+
+  const xAxisMatch = source.match(/x-axis\s*\[([^\]]+)\]/i)
+  const barMatch = source.match(/bar\s*\[([^\]]+)\]/i)
+  if (!xAxisMatch || !barMatch) return source
+
+  const labels = splitMermaidList(xAxisMatch[1] || '')
+  const values = parseMermaidNumbers(barMatch[1] || '')
+  if (labels.length !== 3 || values.length < 3) return source
+
+  const metricKinds = labels.map(classifyMetricLabel)
+  if (!metricKinds.includes('total') || !metricKinds.includes('average') || !metricKinds.includes('peak')) return source
+
+  const title = source.match(/title\s+"([^"]+)"/i)?.[1] || '能耗指标对比'
+  const metricItems = labels.map((label, index) => ({ label, value: values[index] ?? 0 }))
+
+  return [
+    'flowchart LR',
+    `    subgraph COMP["${escapeMermaidText(title)}"]`,
+    ...metricItems.map((item, index) => `        M${index}["${escapeMermaidText(item.label)}<br/>${formatMetricValue(item.value)}"]:::metricCard`),
+    '    end',
+    '    M0 --- M1',
+    '    M1 --- M2',
+    '    classDef metricCard fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#0f172a,font-size:14px,font-weight:bold;'
+  ].join('\n')
+}
+
+const transformMermaidSource = (source: string) => {
+  return transformMetricComparisonChart(source)
+}
+
 const renderMermaidDiagrams = async () => {
   if (!props.visible || props.loading || props.error || !props.content) return
 
@@ -256,7 +316,7 @@ const renderMermaidDiagrams = async () => {
 
     const wrapper = document.createElement('div')
     wrapper.className = 'mermaid'
-    wrapper.textContent = block.textContent || ''
+    wrapper.textContent = transformMermaidSource(block.textContent || '')
     pre.replaceWith(wrapper)
   })
 
