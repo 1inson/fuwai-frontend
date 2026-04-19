@@ -56,7 +56,19 @@ const ensureMermaid = () => {
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'loose',
-    theme: 'default'
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#dbeafe',
+      primaryTextColor: '#0f172a',
+      primaryBorderColor: '#2563eb',
+      lineColor: '#2563eb',
+      textColor: '#1e3a8a',
+      mainBkg: '#eff6ff',
+      secondBkg: '#dbeafe',
+      tertiaryColor: '#bfdbfe',
+      background: '#ffffff',
+      fontFamily: '"Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", sans-serif'
+    }
   })
   mermaidInitialized = true
 }
@@ -122,6 +134,15 @@ const renderMarkdown = (source: string) => {
       .map(cell => cell.trim())
   }
 
+  const isNumericLike = (value: string) => {
+    const normalized = value
+      .replace(/<[^>]+>/g, '')
+      .replace(/,/g, '')
+      .replace(/[%￥¥$a-zA-Z\u4e00-\u9fa5/\s]/g, '')
+      .trim()
+    return normalized.length > 0 && /^-?\d+(\.\d+)?$/.test(normalized)
+  }
+
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] || ''
     const codeFenceMatch = line.match(/^```(\w+)?\s*$/)
@@ -165,8 +186,14 @@ const renderMarkdown = (source: string) => {
         index += 1
       }
 
-      const thead = `<thead><tr>${header.map(cell => `<th>${renderInlineMarkdown(cell || '')}</th>`).join('')}</tr></thead>`
-      const tbody = `<tbody>${bodyRows.map(row => `<tr>${row.map(cell => `<td>${renderInlineMarkdown(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
+      const columnCount = Math.max(header.length, ...bodyRows.map(row => row.length), 0)
+      const numericColumns = Array.from({ length: columnCount }, (_, columnIndex) => {
+        const values = bodyRows.map(row => row[columnIndex] || '').filter(Boolean)
+        return values.length > 0 && values.every(isNumericLike)
+      })
+
+      const thead = `<thead><tr>${header.map((cell, columnIndex) => `<th class="${numericColumns[columnIndex] ? 'align-right' : ''}">${renderInlineMarkdown(cell || '')}</th>`).join('')}</tr></thead>`
+      const tbody = `<tbody>${bodyRows.map(row => `<tr>${row.map((cell, columnIndex) => `<td class="${numericColumns[columnIndex] ? 'align-right' : ''}">${renderInlineMarkdown(cell || '')}</td>`).join('')}</tr>`).join('')}</tbody>`
       blocks.push(`<table>${thead}${tbody}</table>`)
       continue
     }
@@ -277,11 +304,18 @@ watch(
 .markdown-body :deep(th),.markdown-body :deep(td){padding:10px 12px;border-bottom:1px solid #e5edf5;text-align:left;vertical-align:top}
 .markdown-body :deep(th){background:#f7fafc;color:#0f172a;font-weight:700}
 .markdown-body :deep(tr:last-child td){border-bottom:none}
+.markdown-body :deep(th.align-right),.markdown-body :deep(td.align-right){text-align:right;font-variant-numeric:tabular-nums}
 .markdown-body :deep(code){padding:2px 6px;border-radius:6px;background:rgba(16,90,167,.08);color:#0b4582;font-size:12px;font-family:'SFMono-Regular','Consolas','Liberation Mono',monospace}
 .markdown-body :deep(pre){margin:10px 0 0;padding:14px;border-radius:12px;background:#0f1c2b;overflow:auto}
 .markdown-body :deep(pre code){padding:0;background:transparent;color:#d9e8fb;font-size:12px;line-height:1.6}
 .markdown-body :deep(a){color:#0b4582;text-decoration:underline}
 .markdown-body :deep(strong){font-weight:800}
+.markdown-body :deep(.mermaid){display:flex;justify-content:center;margin-top:14px;padding:14px 10px;border:1px solid #dbe5ef;border-radius:14px;background:linear-gradient(180deg,#f8fbff 0%,#eef5ff 100%)}
+.markdown-body :deep(.mermaid svg){max-width:100%;height:auto}
+.markdown-body :deep(.mermaid svg .bar){fill:#2563eb !important}
+.markdown-body :deep(.mermaid svg .line){stroke:#2563eb !important}
+.markdown-body :deep(.mermaid svg text){fill:#1e3a8a !important}
+.markdown-body :deep(.mermaid svg .label),.markdown-body :deep(.mermaid svg .title){fill:#0f172a !important}
 .spin{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (max-width:640px){.overlay{padding:12px}.body{padding:16px}}
