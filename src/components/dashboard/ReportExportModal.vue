@@ -301,7 +301,7 @@ const handleDownload = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Plus Jakarta Sans', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .rpt-modal-container {

@@ -428,7 +428,7 @@ onUnmounted(() => {
   color: #64748b;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-family: 'Plus Jakarta Sans', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .range-tabs button:hover {

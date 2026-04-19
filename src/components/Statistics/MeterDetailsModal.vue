@@ -310,7 +310,7 @@ watch(
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  font-family: 'Plus Jakarta Sans', -apple-system, 'PingFang SC', sans-serif;
+  font-family: var(--font-sans);
   animation: modalSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 

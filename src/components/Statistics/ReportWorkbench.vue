@@ -355,7 +355,7 @@ onUnmounted(() => { if (reportPollingTimer) clearInterval(reportPollingTimer) })
   flex-direction: column;
   gap: 18px;
   color: var(--report-ink);
-  font-family: 'Plus Jakarta Sans', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .top {

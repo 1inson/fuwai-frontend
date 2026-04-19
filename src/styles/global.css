@@ -1,0 +1,33 @@
+:root {
+  --font-sans:
+    'Noto Sans SC',
+    'Source Han Sans SC',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei UI',
+    'Microsoft YaHei',
+    'WenQuanYi Micro Hei',
+    sans-serif;
+  --font-mono:
+    'SFMono-Regular',
+    'JetBrains Mono',
+    'Consolas',
+    'Liberation Mono',
+    monospace;
+}
+
+html,
+body,
+#app {
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
